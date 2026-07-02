@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LKFM 成績管理系統 - 穩定增強版</title>
-    <!-- 使用穩定 CDN 資源 -->
+    <title>LKFM 比賽成績管理系統 - 雲端同步版</title>
+    <!-- 引入美化與功能庫 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     
     <style>
         :root { --primary-dark: #2c3e50; }
-        body { background-color: #f4f7f6; font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; }
+        body { background-color: #f4f7f6; font-family: "Microsoft JhengHei", sans-serif; }
         .navbar { background-color: var(--primary-dark) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
         .card { border: none; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .staff-only, .admin-only { display: none; } 
@@ -21,17 +20,15 @@
         .stats-item:hover { border-color: #0d6efd; background: #f8fbff; }
         .stats-val { font-size: 1.25rem; font-weight: bold; color: #0d6efd; }
         .table-container { background: white; border-radius: 12px; padding: 15px; min-height: 400px; }
-        .btn-clear { background-color: #ff4757; color: white; border: none; }
-        .btn-clear:hover { background-color: #e84118; color: white; }
     </style>
 </head>
 <body>
 
 <nav class="navbar navbar-expand navbar-dark mb-4">
     <div class="container-fluid px-4">
-        <a class="navbar-brand fw-bold" href="#"><i class="bi bi-award-fill me-2"></i>LKFM 成績管理系統</a>
+        <a class="navbar-brand fw-bold" href="#"><i class="bi bi-cloud-check-fill me-2"></i>LKFM 成績管理 (雲端同步)</a>
         <div class="ms-auto d-flex align-items-center">
-            <span id="roleDisplay" class="role-badge bg-secondary text-white me-3">訪客模式</span>
+            <span id="roleDisplay" class="role-badge bg-secondary text-white me-3">讀取權限中...</span>
             <div class="dropdown">
                 <button class="btn btn-outline-light btn-sm dropdown-toggle fw-bold" type="button" data-bs-toggle="dropdown">身分切換</button>
                 <ul class="dropdown-menu dropdown-menu-end shadow">
@@ -46,17 +43,17 @@
 </nav>
 
 <div class="container-fluid px-4">
-    <!-- 獎項分項統計 -->
+    <!-- 統計數據 -->
     <div class="card p-3 mb-4 shadow-sm border-0">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="fw-bold m-0 text-secondary"><i class="bi bi-grid-3x3-gap-fill me-2"></i>即時獲獎數據統計</h6>
-            <span class="badge bg-primary fs-6" id="totalRecordCount">總計: 0</span>
+            <span class="badge bg-primary fs-6" id="totalCount">載入中...</span>
         </div>
         <div class="row row-cols-2 row-cols-md-4 row-cols-xl-6 g-2" id="statsGrid"></div>
     </div>
 
     <div class="row">
-        <!-- 左側：功能面板 -->
+        <!-- 左側面板 -->
         <div class="col-xl-3 col-lg-4 staff-only">
             <div class="card shadow-sm mb-3">
                 <div class="card-header bg-primary text-white fw-bold">新增獲獎紀錄</div>
@@ -78,7 +75,7 @@
                             </select>
                         </div>
                         <div id="f_other_div" class="d-none mb-3"><input type="text" id="f_other_val" class="form-control" placeholder="請註明"></div>
-                        <button type="submit" class="btn btn-primary w-100 fw-bold">提交並通知主任</button>
+                        <button type="submit" id="submitBtn" class="btn btn-primary w-100 fw-bold">提交數據</button>
                     </form>
                 </div>
             </div>
@@ -86,27 +83,23 @@
             <div class="card admin-only border-success shadow-sm">
                 <div class="card-header bg-success text-white fw-bold py-2">管理員工具</div>
                 <div class="card-body">
-                    <button class="btn btn-outline-success btn-sm w-100 mb-2 fw-bold" onclick="document.getElementById('importFile').click()"><i class="bi bi-upload"></i> 導入 Excel</button>
-                    <input type="file" id="importFile" class="d-none" accept=".xlsx, .xls" onchange="importData(this)">
-                    <button class="btn btn-outline-dark btn-sm w-100 mb-3 fw-bold" onclick="exportData()"><i class="bi bi-download"></i> 導出 Excel</button>
-                    
+                    <button class="btn btn-outline-success btn-sm w-100 mb-2 fw-bold" onclick="document.getElementById('importFile').click()"><i class="bi bi-upload"></i> 匯入 Excel</button>
+                    <input type="file" id="importFile" class="d-none" accept=".xlsx, .xls" onchange="handleExcelImport(this)">
+                    <button class="btn btn-outline-dark btn-sm w-100 mb-3 fw-bold" onclick="exportData()"><i class="bi bi-download"></i> 匯出 Excel</button>
                     <hr>
-                    <button class="btn btn-clear btn-sm w-100 fw-bold" onclick="clearAllData()"><i class="bi bi-trash3-fill"></i> 清空所有數據</button>
+                    <button class="btn btn-danger btn-sm w-100 fw-bold" onclick="clearDb()">⚠️ 清空資料庫</button>
                 </div>
             </div>
         </div>
 
-        <!-- 右側：資料清單 -->
+        <!-- 右側清單 -->
         <div class="col-xl-9 col-lg-8">
-            <div class="table-container shadow-sm card">
-                <h5 class="fw-bold mb-3 text-dark">比賽成績清單 <small class="text-muted fw-normal fs-6">(顯示最近 200 筆)</small></h5>
+            <div class="card shadow-sm p-3 table-container">
+                <h5 class="fw-bold mb-3">全校比賽成績清單 <small class="text-muted fw-normal fs-6">(雲端即時同步)</small></h5>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead class="table-light">
-                            <tr>
-                                <th>日期</th><th>比賽名稱</th><th>姓名(班別)</th><th>類別</th><th>獎項</th>
-                                <th class="staff-only text-end">操作</th>
-                            </tr>
+                            <tr><th>日期</th><th>比賽名稱</th><th>姓名(班別)</th><th>類別</th><th>獎項</th><th class="staff-only text-end">操作</th></tr>
                         </thead>
                         <tbody id="dataTable"></tbody>
                     </table>
@@ -120,7 +113,7 @@
 <div class="modal fade" id="loginModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-sm modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">
-            <div class="modal-header py-2 bg-light"><h6 class="modal-title">權限驗證</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-header py-2 bg-light"><h6 class="modal-title">身份驗證</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
             <div class="modal-body text-center p-4">
                 <i class="bi bi-lock fs-1 text-primary mb-3"></i>
                 <input type="password" id="loginPwd" class="form-control text-center" placeholder="請輸入密碼" autofocus>
@@ -132,166 +125,59 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-<script>
-    // 密碼 (staff888, admin999)
-    const PASS = { staff: "c3RhZmY4ODg=", admin: "YWRtaW45OTk=" };
-    
-    let loginModal;
-    let pendingRole = '';
-    let currentRole = localStorage.getItem('lkfm_role') || 'viewer';
-    let records = JSON.parse(localStorage.getItem('lkfm_records')) || [];
-    const awardOptions = ["冠軍", "亞軍", "季軍", "殿軍", "金獎", "銀獎", "銅獎", "一等獎", "二等獎", "優良", "優異獎"];
+<!-- Firebase 核心邏輯 -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, writeBatch, getDocs } 
+    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    window.onload = function() {
-        loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
-        applyRole(currentRole);
-        refreshUI();
+    // 使用主任提供的 Firebase 配置
+    const firebaseConfig = {
+        apiKey: "AIzaSyBD1iahWhbqDElEaZGIS8YAdQR3RtdqS8s",
+        authDomain: "lkfms-30e77.firebaseapp.com",
+        projectId: "lkfms-30e77",
+        storageBucket: "lkfms-30e77.firebasestorage.app",
+        messagingSenderId: "451297059058",
+        appId: "1:451297059058:web:860dae00c20d00276c306b",
+        measurementId: "G-89SXL5Z2CQ"
     };
 
-    // --- 強化版導入邏輯：徹底解決姓名匿名與標題識別問題 ---
-    function importData(input) {
-        const file = input.files[0];
-        if (!file) return;
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const colRef = collection(db, "competition_records");
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const arr = new Uint8Array(e.target.result);
-                const wb = XLSX.read(arr, { type: 'array', cellDates: true }); 
-                const sheet = wb.Sheets[wb.SheetNames[0]];
-                const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+    // 全域狀態
+    let records = [];
+    let currentRole = localStorage.getItem('lkfm_role') || 'viewer';
+    const PASS = { staff: "c3RhZmY4ODg=", admin: "YWRtaW45OTk=" }; // staff888, admin999
+    const awardOptions = ["冠軍", "亞軍", "季軍", "殿軍", "金獎", "銀獎", "銅獎", "一等獎", "二等獎", "優良", "優異獎"];
+    const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
 
-                if (json.length === 0) return alert("文件內無數據！");
-
-                const imported = json.map((row, idx) => {
-                    // 核心：清洗標題，解決標題帶空格的問題
-                    const cleanRow = {};
-                    Object.keys(row).forEach(key => {
-                        const cleanKey = key.toString().trim().replace(/\s+/g, '');
-                        cleanRow[cleanKey] = row[key];
-                    });
-
-                    // 多重標題匹配
-                    const name = cleanRow["學生姓名"] || cleanRow["姓名"] || cleanRow["學生"] || cleanRow["StudentName"] || cleanRow["Name"];
-                    const date = cleanRow["日期"] || cleanRow["比賽日期"] || cleanRow["Date"];
-                    const comp = cleanRow["比賽名稱"] || cleanRow["比賽"] || cleanRow["名稱"] || cleanRow["Competition"];
-                    const cls = cleanRow["班別"] || cleanRow["班級"] || cleanRow["Class"];
-                    const award = cleanRow["獎項"] || cleanRow["獲得獎項"] || cleanRow["Award"];
-                    const cat = cleanRow["類別"] || cleanRow["比賽類別"] || cleanRow["Category"];
-
-                    return {
-                        id: Date.now() + idx + Math.random(),
-                        date: date instanceof Date ? date.toISOString().split('T')[0] : (date || ""),
-                        name: comp || "未命名比賽",
-                        student: name || "格式錯誤", // 如果這裡還出錯，說明 Excel 標題真的沒對上
-                        class: cls || "",
-                        cat: cat || "學術",
-                        award: award || "優異獎"
-                    };
-                });
-
-                // 容錯檢查：如果第一筆數據的姓名就是「格式錯誤」，提示用戶
-                if (imported[0].student === "格式錯誤") {
-                    throw new Error("無法辨識 Excel 標題。請確保標題包含「姓名」或「學生姓名」。");
-                }
-
-                // 容量檢查
-                const newData = JSON.stringify([...imported, ...records]);
-                if (newData.length * 2 > 4.5 * 1024 * 1024) {
-                    return alert("數據過大，已達到 5MB 限制。請分批匯入或清空舊數據。");
-                }
-
-                records = [...imported, ...records];
-                localStorage.setItem('lkfm_records', newData);
-                refreshUI();
-                alert(`成功導入 ${imported.length} 筆資料！`);
-                input.value = ""; 
-
-            } catch (err) {
-                alert("導入失敗: " + err.message);
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    }
-
-    // --- 數據清空功能 ---
-    function clearAllData() {
-        if (currentRole !== 'admin') return alert("僅管理員可執行此操作。");
-        if (confirm("⚠️ 注意：這將永久刪除所有已儲存的比賽紀錄，且無法恢復！\n您確定要繼續嗎？")) {
-            records = [];
-            localStorage.removeItem('lkfm_records');
-            refreshUI();
-            alert("數據已全數清空。");
-        }
-    }
-
-    // --- 權限管理 ---
-    function triggerLogin(role) {
-        pendingRole = role;
-        document.getElementById('loginPwd').value = '';
-        loginModal.show();
-        setTimeout(() => document.getElementById('loginPwd').focus(), 500);
-    }
-
-    function confirmLogin() {
-        const input = document.getElementById('loginPwd').value;
-        if (btoa(input) === PASS[pendingRole]) {
-            applyRole(pendingRole);
-            loginModal.hide();
-        } else {
-            alert("密碼不正確！");
-        }
-    }
-
-    function applyRole(role) {
-        currentRole = role;
-        localStorage.setItem('lkfm_role', role);
-        const badge = document.getElementById('roleDisplay');
-        const sOnly = document.querySelectorAll('.staff-only');
-        const aOnly = document.querySelectorAll('.admin-only');
-
-        if (role === 'admin') {
-            badge.innerText = "管理員 (Admin)";
-            badge.className = "role-badge bg-danger text-white";
-            sOnly.forEach(el => el.style.display = 'block');
-            aOnly.forEach(el => el.style.display = 'block');
-        } else if (role === 'staff') {
-            badge.innerText = "教職員 (Staff)";
-            badge.className = "role-badge bg-primary text-white";
-            sOnly.forEach(el => el.style.display = 'block');
-            aOnly.forEach(el => el.style.display = 'none');
-        } else {
-            badge.innerText = "訪客模式";
-            badge.className = "role-badge bg-secondary text-white";
-            sOnly.forEach(el => el.style.display = 'none');
-            aOnly.forEach(el => el.style.display = 'none');
-        }
+    // 1. 即時監聽：雲端一有變動，所有裝置同步更新
+    const q = query(colRef, orderBy("date", "desc"));
+    onSnapshot(q, (snapshot) => {
+        records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         refreshUI();
-    }
+    });
 
-    function logout() {
-        if(confirm("確定鎖定權限嗎？")) applyRole('viewer');
-    }
-
-    // --- 渲染功能 ---
+    // 2. 界面渲染
     function refreshUI() {
         const tbody = document.getElementById('dataTable');
-        // 僅顯示前 200 筆，避免大量數據導致網頁崩潰
-        const displayRecords = records.slice(0, 200);
-        
-        tbody.innerHTML = displayRecords.map(r => `
+        tbody.innerHTML = records.map(r => `
             <tr>
                 <td class="small text-muted">${r.date}</td>
-                <td class="fw-bold text-truncate" style="max-width:200px;">${r.name}</td>
-                <td>${r.student} <span class="badge bg-light text-dark fw-normal">${r.class}</span></td>
-                <td><span class="small">${r.cat}</span></td>
+                <td class="fw-bold">${r.name}</td>
+                <td>${r.student}(${r.class})</td>
+                <td><span class="badge bg-light text-dark fw-normal">${r.cat}</span></td>
                 <td class="text-primary fw-bold">${r.award}</td>
                 <td class="staff-only text-end" style="display:${currentRole!=='viewer'?'table-cell':'none'}">
-                    <button class="btn btn-sm text-danger" onclick="deleteRec(${r.id})"><i class="bi bi-trash"></i></button>
+                    <button class="btn btn-sm text-danger" onclick="window.delRec('${r.id}')"><i class="bi bi-trash"></i></button>
                 </td>
             </tr>
         `).join('');
+        
         renderStats();
+        applyRoleUI(currentRole);
     }
 
     function renderStats() {
@@ -301,24 +187,49 @@
             if (awardOptions.includes(r.award)) counts[r.award]++;
             else counts["其他"]++;
         });
-
-        document.getElementById('totalRecordCount').innerText = `總筆數: ${records.length}`;
+        document.getElementById('totalCount').innerText = `總筆數: ${records.length}`;
         document.getElementById('statsGrid').innerHTML = [...awardOptions, "其他"].map(label => `
-            <div class="col">
-                <div class="stats-item">
-                    <div class="small text-muted">${label}</div>
-                    <div class="stats-val">${counts[label]}</div>
-                </div>
-            </div>
+            <div class="col"><div class="stats-item"><div class="small text-muted">${label}</div><div class="stats-val">${counts[label]}</div></div></div>
         `).join('');
     }
 
-    // --- 數據交互 ---
-    document.getElementById('recordForm').addEventListener('submit', function(e) {
+    // 3. 權限與登入
+    window.triggerLogin = (role) => {
+        window.pendingRole = role;
+        document.getElementById('loginPwd').value = '';
+        loginModal.show();
+        setTimeout(() => document.getElementById('loginPwd').focus(), 500);
+    };
+
+    window.confirmLogin = () => {
+        const input = document.getElementById('loginPwd').value;
+        if (btoa(input) === PASS[window.pendingRole]) {
+            currentRole = window.pendingRole;
+            localStorage.setItem('lkfm_role', currentRole);
+            loginModal.hide();
+            applyRoleUI(currentRole);
+        } else { alert("密碼錯誤！"); }
+    };
+
+    function applyRoleUI(role) {
+        const badge = document.getElementById('roleDisplay');
+        badge.innerText = role === 'admin' ? '管理員' : (role === 'staff' ? '教職員' : '訪客模式');
+        badge.className = `role-badge text-white ${role === 'admin' ? 'bg-danger' : (role === 'staff' ? 'bg-primary' : 'bg-secondary')}`;
+        document.querySelectorAll('.staff-only').forEach(el => el.style.display = role !== 'viewer' ? 'block' : 'none');
+        document.querySelectorAll('.admin-only').forEach(el => el.style.display = role === 'admin' ? 'block' : 'none');
+    }
+
+    window.logout = () => { currentRole = 'viewer'; localStorage.setItem('lkfm_role', 'viewer'); applyRoleUI('viewer'); };
+
+    // 4. 雲端操作 (新增/刪除/清空)
+    document.getElementById('recordForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.innerText = "提交中...";
+        
         const selAward = document.getElementById('f_award').value;
         const entry = {
-            id: Date.now(),
             date: document.getElementById('f_date').value,
             name: document.getElementById('f_name').value,
             student: document.getElementById('f_stu').value,
@@ -326,34 +237,81 @@
             cat: document.getElementById('f_cat').value,
             award: selAward === '其他' ? document.getElementById('f_other_val').value : selAward
         };
-        records.unshift(entry);
-        localStorage.setItem('lkfm_records', JSON.stringify(records));
-        refreshUI();
-        this.reset();
-        alert("成績已新增。");
+
+        try {
+            await addDoc(colRef, entry);
+            e.target.reset();
+            document.getElementById('f_other_div').classList.add('d-none');
+            alert("新增成功，雲端已同步！");
+        } catch (err) {
+            alert("提交失敗: " + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "提交數據";
+        }
     });
 
-    function deleteRec(id) {
+    window.delRec = async (id) => { 
         if(confirm("確定刪除此紀錄？")) {
-            records = records.filter(r => r.id !== id);
-            localStorage.setItem('lkfm_records', JSON.stringify(records));
-            refreshUI();
+            await deleteDoc(doc(db, "competition_records", id));
         }
-    }
+    };
 
-    function exportData() {
+    window.clearDb = async () => {
+        if(!confirm("⚠️ 警告：這將清空雲端所有數據，且無法復原！")) return;
+        const snapshot = await getDocs(colRef);
+        const batch = writeBatch(db);
+        snapshot.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        alert("資料庫已清空");
+    };
+
+    // 5. Excel 匯入 (針對標題清洗與姓名抓取)
+    window.handleExcelImport = (input) => {
+        const file = input.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const arr = new Uint8Array(e.target.result);
+            const wb = XLSX.read(arr, { type: 'array', cellDates: true });
+            const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+            
+            const batch = writeBatch(db);
+            json.forEach((row, idx) => {
+                const cleanRow = {};
+                Object.keys(row).forEach(k => cleanRow[k.toString().trim().replace(/\s/g, '')] = row[k]);
+                
+                const name = cleanRow["學生姓名"] || cleanRow["姓名"] || cleanRow["學生"] || cleanRow["StudentName"];
+                const date = cleanRow["日期"] || cleanRow["比賽日期"] || cleanRow["Date"];
+                
+                batch.set(doc(colRef), {
+                    date: date instanceof Date ? date.toISOString().split('T')[0] : (date || ""),
+                    name: cleanRow["比賽名稱"] || cleanRow["名稱"] || "未命名比賽",
+                    student: name || "格式不符",
+                    class: cleanRow["班別"] || cleanRow["Class"] || "",
+                    cat: cleanRow["類別"] || cleanRow["Category"] || "學術",
+                    award: cleanRow["獎項"] || cleanRow["Award"] || "優異獎"
+                });
+            });
+            await batch.commit();
+            alert(`成功匯入 ${json.length} 筆資料至雲端！`);
+            input.value = "";
+        };
+        reader.readAsArrayBuffer(input.files[0]);
+    };
+
+    window.exportData = () => {
         const ws = XLSX.utils.json_to_sheet(records.map(r => ({
             "日期": r.date, "比賽名稱": r.name, "學生姓名": r.student, "班別": r.class, "類別": r.cat, "獎項": r.award
         })));
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "比賽成績");
-        XLSX.writeFile(wb, `LKFM_成績導出_${new Date().toISOString().slice(0,10)}.xlsx`);
-    }
+        XLSX.writeFile(wb, `LKFM_雲端備份_${new Date().toISOString().slice(0,10)}.xlsx`);
+    };
 
-    function checkOther(sel, target) {
-        document.getElementById(target).classList.toggle('d-none', sel.value !== '其他');
-    }
+    window.checkOther = (sel, divId) => document.getElementById(divId).classList.toggle('d-none', sel.value !== '其他');
+
 </script>
-
 </body>
 </html>
