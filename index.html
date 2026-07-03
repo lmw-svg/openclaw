@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LKFM 比賽成績管理系統 - 最終版</title>
+    <title>LKFM 比賽成績管理系統 - 穩定雲端版</title>
     <!-- 引入外部資源 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
@@ -43,7 +43,6 @@
 </nav>
 
 <div class="container-fluid px-4">
-    <!-- 獎項分項統計 -->
     <div class="card p-3 mb-4 shadow-sm border-0">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="fw-bold m-0 text-secondary"><i class="bi bi-grid-3x3-gap-fill me-2"></i>即時獲獎數據統計</h6>
@@ -53,7 +52,6 @@
     </div>
 
     <div class="row">
-        <!-- 左側：輸入面板 -->
         <div class="col-xl-3 col-lg-4 staff-only">
             <div class="card shadow-sm mb-3">
                 <div class="card-header bg-primary text-white fw-bold">新增獲獎紀錄</div>
@@ -92,7 +90,6 @@
             </div>
         </div>
 
-        <!-- 右側：清單 -->
         <div class="col-xl-9 col-lg-8">
             <div class="card shadow-sm p-3 table-container">
                 <h5 class="fw-bold mb-3">全校比賽成績清單 <small class="text-muted fw-normal fs-6">(雲端同步)</small></h5>
@@ -126,7 +123,6 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script type="module">
-    // Firebase 初始化
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, writeBatch, getDocs } 
     from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -141,7 +137,6 @@
         measurementId: "G-89SXL5Z2CQ"
     };
 
-    // EmailJS 配置 (已填入主任提供的 ID)
     const EMAILJS_CONFIG = {
         PUBLIC_KEY: "0niGy89JNRcVppIyj",
         SERVICE_ID: "service_q5gvt5p",
@@ -159,19 +154,19 @@
     const awardOptions = ["冠軍", "亞軍", "季軍", "殿軍", "金獎", "銀獎", "銅獎", "一等獎", "二等獎", "優良", "優異獎"];
     const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
 
-    // 1. 雲端即時監聽
     const q = query(colRef, orderBy("date", "desc"));
     onSnapshot(q, (snapshot) => {
         records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         refreshUI();
     });
 
-    // 2. 提交數據 + 發送信件
+    // --- 核心修正：提交數據與電郵發送邏輯 ---
     document.getElementById('recordForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = document.getElementById('submitBtn');
+        
         btn.disabled = true;
-        btn.innerText = "提交並發信中...";
+        btn.innerText = "正在同步雲端...";
 
         const selAward = document.getElementById('f_award').value;
         const entry = {
@@ -184,31 +179,44 @@
         };
 
         try {
-            // A. 存入 Firebase
+            // 1. 優先存入 Firebase
             await addDoc(colRef, entry);
-
-            // B. 發送電郵通知 lmw@lkfms.edu.hk
-            await emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.TEMPLATE_ID, {
-                to_email: "lmw@lkfms.edu.hk",
-                student_name: entry.student,
-                student_class: entry.class,
-                comp_name: entry.name,
-                award_name: entry.award,
-                comp_date: entry.date
-            });
-
+            
+            // 成功存入後立即清空表單
             e.target.reset();
             document.getElementById('f_other_div').classList.add('d-none');
-            alert("✅ 成功！雲端已同步並發送電郵通知主任。");
-        } catch (err) {
-            alert("❌ 操作失敗: " + err.message);
+            console.log("Firebase 同步成功");
+
+            // 2. 嘗試發送電郵 (獨立捕捉錯誤，不影響資料庫結果)
+            btn.innerText = "發送通知信中...";
+            try {
+                const response = await emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.TEMPLATE_ID, {
+                    to_email: "lmw@lkfms.edu.hk",
+                    student_name: entry.student,
+                    student_class: entry.class,
+                    comp_name: entry.name,
+                    award_name: entry.award,
+                    comp_date: entry.date
+                });
+                console.log("電郵發送成功", response.status, response.text);
+                alert("✅ 錄入成功！\n數據已同步雲端，並已發信通知 lmw 主任。");
+            } catch (mailErr) {
+                console.error("EmailJS 錯誤詳情:", mailErr);
+                // 數據已成功但郵件失敗的具體提示
+                const mailErrorDetail = mailErr.text || mailErr.message || JSON.stringify(mailErr);
+                alert("⚠️ 數據已成功存入雲端！\n\n但自動通知電郵發送失敗。\n原因: " + mailErrorDetail);
+            }
+
+        } catch (dbErr) {
+            console.error("Firebase 寫入錯誤:", dbErr);
+            alert("❌ 雲端同步失敗！\n錯誤原因: " + (dbErr.message || "權限不足或網路問題"));
         } finally {
             btn.disabled = false;
             btn.innerText = "提交數據並發信";
         }
     });
 
-    // --- 輔助邏輯 (權限/UI/Excel) ---
+    // --- 其他輔助邏輯 ---
     function refreshUI() {
         const tbody = document.getElementById('dataTable');
         tbody.innerHTML = records.map(r => `
@@ -257,9 +265,7 @@
         document.querySelectorAll('.admin-only').forEach(el => el.style.display = role === 'admin' ? 'block' : 'none');
     }
     window.logout = () => { currentRole = 'viewer'; localStorage.setItem('lkfm_role', 'viewer'); applyRoleUI('viewer'); };
-    
     window.delRec = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "competition_records", id)); };
-    
     window.clearDb = async () => {
         if(!confirm("⚠️ 警告：這將徹底清空雲端所有數據！")) return;
         const snapshot = await getDocs(colRef);
@@ -268,7 +274,6 @@
         await batch.commit();
         alert("雲端數據已清空");
     };
-
     window.handleExcelImport = (input) => {
         const reader = new FileReader();
         reader.onload = async (e) => {
@@ -295,7 +300,6 @@
         };
         reader.readAsArrayBuffer(input.files[0]);
     };
-
     window.exportData = () => {
         const ws = XLSX.utils.json_to_sheet(records.map(r => ({
             "日期": r.date, "比賽名稱": r.name, "學生姓名": r.student, "班別": r.class, "類別": r.cat, "獎項": r.award
@@ -304,7 +308,6 @@
         XLSX.utils.book_append_sheet(wb, ws, "比賽成績");
         XLSX.writeFile(wb, `LKFM_雲端備份_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
-
     window.checkOther = (sel, divId) => document.getElementById(divId).classList.toggle('d-none', sel.value !== '其他');
 </script>
 </body>
