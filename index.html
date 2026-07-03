@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LKFM 比賽成績管理系統 - 雲端同步版</title>
-    <!-- 引入美化與功能庫 -->
+    <title>LKFM 比賽成績管理系統 - 最終版</title>
+    <!-- 引入外部資源 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     
     <style>
         :root { --primary-dark: #2c3e50; }
@@ -17,7 +18,6 @@
         .staff-only, .admin-only { display: none; } 
         .role-badge { padding: 5px 15px; border-radius: 50px; font-weight: bold; font-size: 0.85rem; }
         .stats-item { background: white; padding: 12px 5px; border-radius: 10px; border: 1px solid #eee; text-align: center; height: 100%; transition: 0.2s; }
-        .stats-item:hover { border-color: #0d6efd; background: #f8fbff; }
         .stats-val { font-size: 1.25rem; font-weight: bold; color: #0d6efd; }
         .table-container { background: white; border-radius: 12px; padding: 15px; min-height: 400px; }
     </style>
@@ -26,9 +26,9 @@
 
 <nav class="navbar navbar-expand navbar-dark mb-4">
     <div class="container-fluid px-4">
-        <a class="navbar-brand fw-bold" href="#"><i class="bi bi-cloud-check-fill me-2"></i>LKFM 成績管理 (雲端同步)</a>
+        <a class="navbar-brand fw-bold" href="#"><i class="bi bi-cloud-check-fill me-2"></i>LKFM 成績管理 (雲端+電郵通知)</a>
         <div class="ms-auto d-flex align-items-center">
-            <span id="roleDisplay" class="role-badge bg-secondary text-white me-3">讀取權限中...</span>
+            <span id="roleDisplay" class="role-badge bg-secondary text-white me-3">讀取中...</span>
             <div class="dropdown">
                 <button class="btn btn-outline-light btn-sm dropdown-toggle fw-bold" type="button" data-bs-toggle="dropdown">身分切換</button>
                 <ul class="dropdown-menu dropdown-menu-end shadow">
@@ -43,7 +43,7 @@
 </nav>
 
 <div class="container-fluid px-4">
-    <!-- 統計數據 -->
+    <!-- 獎項分項統計 -->
     <div class="card p-3 mb-4 shadow-sm border-0">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="fw-bold m-0 text-secondary"><i class="bi bi-grid-3x3-gap-fill me-2"></i>即時獲獎數據統計</h6>
@@ -53,7 +53,7 @@
     </div>
 
     <div class="row">
-        <!-- 左側面板 -->
+        <!-- 左側：輸入面板 -->
         <div class="col-xl-3 col-lg-4 staff-only">
             <div class="card shadow-sm mb-3">
                 <div class="card-header bg-primary text-white fw-bold">新增獲獎紀錄</div>
@@ -75,27 +75,27 @@
                             </select>
                         </div>
                         <div id="f_other_div" class="d-none mb-3"><input type="text" id="f_other_val" class="form-control" placeholder="請註明"></div>
-                        <button type="submit" id="submitBtn" class="btn btn-primary w-100 fw-bold">提交數據</button>
+                        <button type="submit" id="submitBtn" class="btn btn-primary w-100 fw-bold shadow-sm">提交數據並發信</button>
                     </form>
                 </div>
             </div>
             
             <div class="card admin-only border-success shadow-sm">
-                <div class="card-header bg-success text-white fw-bold py-2">管理員工具</div>
+                <div class="card-header bg-success text-white fw-bold py-2">管理員工具箱</div>
                 <div class="card-body">
-                    <button class="btn btn-outline-success btn-sm w-100 mb-2 fw-bold" onclick="document.getElementById('importFile').click()"><i class="bi bi-upload"></i> 匯入 Excel</button>
+                    <button class="btn btn-outline-success btn-sm w-100 mb-2 fw-bold" onclick="document.getElementById('importFile').click()">📂 匯入 Excel</button>
                     <input type="file" id="importFile" class="d-none" accept=".xlsx, .xls" onchange="handleExcelImport(this)">
-                    <button class="btn btn-outline-dark btn-sm w-100 mb-3 fw-bold" onclick="exportData()"><i class="bi bi-download"></i> 匯出 Excel</button>
+                    <button class="btn btn-outline-dark btn-sm w-100 mb-2" onclick="exportData()">📊 備份雲端數據</button>
                     <hr>
                     <button class="btn btn-danger btn-sm w-100 fw-bold" onclick="clearDb()">⚠️ 清空資料庫</button>
                 </div>
             </div>
         </div>
 
-        <!-- 右側清單 -->
+        <!-- 右側：清單 -->
         <div class="col-xl-9 col-lg-8">
             <div class="card shadow-sm p-3 table-container">
-                <h5 class="fw-bold mb-3">全校比賽成績清單 <small class="text-muted fw-normal fs-6">(雲端即時同步)</small></h5>
+                <h5 class="fw-bold mb-3">全校比賽成績清單 <small class="text-muted fw-normal fs-6">(雲端同步)</small></h5>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead class="table-light">
@@ -118,20 +118,19 @@
                 <i class="bi bi-lock fs-1 text-primary mb-3"></i>
                 <input type="password" id="loginPwd" class="form-control text-center" placeholder="請輸入密碼" autofocus>
             </div>
-            <div class="modal-footer p-1 border-0"><button type="button" class="btn btn-primary w-100 fw-bold" onclick="confirmLogin()">確認</button></div>
+            <div class="modal-footer p-1 border-0"><button type="button" class="btn btn-primary w-100 fw-bold" onclick="confirmLogin()">登入</button></div>
         </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-<!-- Firebase 核心邏輯 -->
 <script type="module">
+    // Firebase 初始化
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, writeBatch, getDocs } 
     from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    // 使用主任提供的 Firebase 配置
     const firebaseConfig = {
         apiKey: "AIzaSyBD1iahWhbqDElEaZGIS8YAdQR3RtdqS8s",
         authDomain: "lkfms-30e77.firebaseapp.com",
@@ -142,25 +141,74 @@
         measurementId: "G-89SXL5Z2CQ"
     };
 
+    // EmailJS 配置 (已填入主任提供的 ID)
+    const EMAILJS_CONFIG = {
+        PUBLIC_KEY: "0niGy89JNRcVppIyj",
+        SERVICE_ID: "service_q5gvt5p",
+        TEMPLATE_ID: "template_0w2a28"
+    };
+
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const colRef = collection(db, "competition_records");
+    emailjs.init(EMAILJS_CONFIG.PUBLIC_KEY);
 
-    // 全域狀態
     let records = [];
     let currentRole = localStorage.getItem('lkfm_role') || 'viewer';
-    const PASS = { staff: "c3RhZmY4ODg=", admin: "YWRtaW45OTk=" }; // staff888, admin999
+    const PASS = { staff: "c3RhZmY4ODg=", admin: "YWRtaW45OTk=" }; 
     const awardOptions = ["冠軍", "亞軍", "季軍", "殿軍", "金獎", "銀獎", "銅獎", "一等獎", "二等獎", "優良", "優異獎"];
     const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
 
-    // 1. 即時監聽：雲端一有變動，所有裝置同步更新
+    // 1. 雲端即時監聽
     const q = query(colRef, orderBy("date", "desc"));
     onSnapshot(q, (snapshot) => {
         records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         refreshUI();
     });
 
-    // 2. 界面渲染
+    // 2. 提交數據 + 發送信件
+    document.getElementById('recordForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.innerText = "提交並發信中...";
+
+        const selAward = document.getElementById('f_award').value;
+        const entry = {
+            date: document.getElementById('f_date').value,
+            name: document.getElementById('f_name').value,
+            student: document.getElementById('f_stu').value,
+            class: document.getElementById('f_class').value,
+            cat: document.getElementById('f_cat').value,
+            award: selAward === '其他' ? document.getElementById('f_other_val').value : selAward
+        };
+
+        try {
+            // A. 存入 Firebase
+            await addDoc(colRef, entry);
+
+            // B. 發送電郵通知 lmw@lkfms.edu.hk
+            await emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.TEMPLATE_ID, {
+                to_email: "lmw@lkfms.edu.hk",
+                student_name: entry.student,
+                student_class: entry.class,
+                comp_name: entry.name,
+                award_name: entry.award,
+                comp_date: entry.date
+            });
+
+            e.target.reset();
+            document.getElementById('f_other_div').classList.add('d-none');
+            alert("✅ 成功！雲端已同步並發送電郵通知主任。");
+        } catch (err) {
+            alert("❌ 操作失敗: " + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "提交數據並發信";
+        }
+    });
+
+    // --- 輔助邏輯 (權限/UI/Excel) ---
     function refreshUI() {
         const tbody = document.getElementById('dataTable');
         tbody.innerHTML = records.map(r => `
@@ -175,7 +223,6 @@
                 </td>
             </tr>
         `).join('');
-        
         renderStats();
         applyRoleUI(currentRole);
     }
@@ -193,24 +240,15 @@
         `).join('');
     }
 
-    // 3. 權限與登入
-    window.triggerLogin = (role) => {
-        window.pendingRole = role;
-        document.getElementById('loginPwd').value = '';
-        loginModal.show();
-        setTimeout(() => document.getElementById('loginPwd').focus(), 500);
-    };
-
+    window.triggerLogin = (role) => { window.pendingRole = role; document.getElementById('loginPwd').value = ''; loginModal.show(); setTimeout(() => document.getElementById('loginPwd').focus(), 500);};
     window.confirmLogin = () => {
-        const input = document.getElementById('loginPwd').value;
-        if (btoa(input) === PASS[window.pendingRole]) {
+        if (btoa(document.getElementById('loginPwd').value) === PASS[window.pendingRole]) {
             currentRole = window.pendingRole;
             localStorage.setItem('lkfm_role', currentRole);
             loginModal.hide();
             applyRoleUI(currentRole);
-        } else { alert("密碼錯誤！"); }
+        } else { alert("密碼不正確！"); }
     };
-
     function applyRoleUI(role) {
         const badge = document.getElementById('roleDisplay');
         badge.innerText = role === 'admin' ? '管理員' : (role === 'staff' ? '教職員' : '訪客模式');
@@ -218,84 +256,41 @@
         document.querySelectorAll('.staff-only').forEach(el => el.style.display = role !== 'viewer' ? 'block' : 'none');
         document.querySelectorAll('.admin-only').forEach(el => el.style.display = role === 'admin' ? 'block' : 'none');
     }
-
     window.logout = () => { currentRole = 'viewer'; localStorage.setItem('lkfm_role', 'viewer'); applyRoleUI('viewer'); };
-
-    // 4. 雲端操作 (新增/刪除/清空)
-    document.getElementById('recordForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = document.getElementById('submitBtn');
-        btn.disabled = true;
-        btn.innerText = "提交中...";
-        
-        const selAward = document.getElementById('f_award').value;
-        const entry = {
-            date: document.getElementById('f_date').value,
-            name: document.getElementById('f_name').value,
-            student: document.getElementById('f_stu').value,
-            class: document.getElementById('f_class').value,
-            cat: document.getElementById('f_cat').value,
-            award: selAward === '其他' ? document.getElementById('f_other_val').value : selAward
-        };
-
-        try {
-            await addDoc(colRef, entry);
-            e.target.reset();
-            document.getElementById('f_other_div').classList.add('d-none');
-            alert("新增成功，雲端已同步！");
-        } catch (err) {
-            alert("提交失敗: " + err.message);
-        } finally {
-            btn.disabled = false;
-            btn.innerText = "提交數據";
-        }
-    });
-
-    window.delRec = async (id) => { 
-        if(confirm("確定刪除此紀錄？")) {
-            await deleteDoc(doc(db, "competition_records", id));
-        }
-    };
-
+    
+    window.delRec = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "competition_records", id)); };
+    
     window.clearDb = async () => {
-        if(!confirm("⚠️ 警告：這將清空雲端所有數據，且無法復原！")) return;
+        if(!confirm("⚠️ 警告：這將徹底清空雲端所有數據！")) return;
         const snapshot = await getDocs(colRef);
         const batch = writeBatch(db);
         snapshot.docs.forEach(d => batch.delete(d.ref));
         await batch.commit();
-        alert("資料庫已清空");
+        alert("雲端數據已清空");
     };
 
-    // 5. Excel 匯入 (針對標題清洗與姓名抓取)
     window.handleExcelImport = (input) => {
-        const file = input.files[0];
-        if (!file) return;
-
         const reader = new FileReader();
         reader.onload = async (e) => {
             const arr = new Uint8Array(e.target.result);
             const wb = XLSX.read(arr, { type: 'array', cellDates: true });
             const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-            
             const batch = writeBatch(db);
             json.forEach((row, idx) => {
                 const cleanRow = {};
                 Object.keys(row).forEach(k => cleanRow[k.toString().trim().replace(/\s/g, '')] = row[k]);
-                
                 const name = cleanRow["學生姓名"] || cleanRow["姓名"] || cleanRow["學生"] || cleanRow["StudentName"];
-                const date = cleanRow["日期"] || cleanRow["比賽日期"] || cleanRow["Date"];
-                
                 batch.set(doc(colRef), {
-                    date: date instanceof Date ? date.toISOString().split('T')[0] : (date || ""),
+                    date: cleanRow["日期"] || cleanRow["比賽日期"] || "",
                     name: cleanRow["比賽名稱"] || cleanRow["名稱"] || "未命名比賽",
-                    student: name || "格式不符",
+                    student: name || "標題未對齊",
                     class: cleanRow["班別"] || cleanRow["Class"] || "",
                     cat: cleanRow["類別"] || cleanRow["Category"] || "學術",
                     award: cleanRow["獎項"] || cleanRow["Award"] || "優異獎"
                 });
             });
             await batch.commit();
-            alert(`成功匯入 ${json.length} 筆資料至雲端！`);
+            alert(`匯入完成！成功添加 ${json.length} 筆數據。`);
             input.value = "";
         };
         reader.readAsArrayBuffer(input.files[0]);
@@ -311,7 +306,6 @@
     };
 
     window.checkOther = (sel, divId) => document.getElementById(divId).classList.toggle('d-none', sel.value !== '其他');
-
 </script>
 </body>
 </html>
