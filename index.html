@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LKFM 比賽成績管理系統 - 最終整合版</title>
-    <!-- 資源引入 -->
+    <title>LKFM 比賽成績管理系統 - 類別篩選版</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -21,13 +20,14 @@
         .stats-val { font-size: 1.25rem; font-weight: bold; color: #0d6efd; }
         .table-container { background: white; border-radius: 12px; padding: 20px; min-height: 400px; }
         .student-input-group { background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #dee2e6; }
+        .search-area { background: #e9ecef; border-radius: 12px; padding: 15px; margin-bottom: 20px; }
     </style>
 </head>
 <body>
 
 <nav class="navbar navbar-expand navbar-dark mb-4">
     <div class="container-fluid px-4">
-        <a class="navbar-brand fw-bold" href="#"><i class="bi bi-person-check-fill me-2"></i>LKFM 成績管理 (按人數獲獎統計版)</a>
+        <a class="navbar-brand fw-bold" href="#"><i class="bi bi-funnel-fill me-2"></i>LKFM 成績管理 (類別篩選+多人版)</a>
         <div class="ms-auto d-flex align-items-center">
             <span id="roleDisplay" class="role-badge bg-secondary text-white me-3">讀取中...</span>
             <div class="dropdown">
@@ -47,7 +47,7 @@
     <!-- 統計面板：按人次計算 -->
     <div class="card p-3 mb-4 shadow-sm border-0">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h6 class="fw-bold m-0 text-secondary"><i class="bi bi-people-fill me-2"></i>即時獲獎人次統計 (按人數計)</h6>
+            <h6 class="fw-bold m-0 text-secondary"><i class="bi bi-people-fill me-2"></i>獲獎人次統計 (隨篩選連動)</h6>
             <span class="badge bg-primary fs-6" id="totalCount">載入中...</span>
         </div>
         <div class="row row-cols-2 row-cols-md-4 row-cols-xl-6 g-2" id="statsGrid"></div>
@@ -71,23 +71,36 @@
                                     <div class="col-4"><input type="text" id="f_class1" class="form-control form-control-sm" placeholder="班別" required></div>
                                 </div>
                                 <div class="row g-2 mb-2">
-                                    <div class="col-8"><input type="text" id="f_stu2" class="form-control form-control-sm" placeholder="姓名 2 (選填)"></div>
+                                    <div class="col-8"><input type="text" id="f_stu2" class="form-control form-control-sm" placeholder="姓名 2"></div>
                                     <div class="col-4"><input type="text" id="f_class2" class="form-control form-control-sm" placeholder="班別"></div>
                                 </div>
                                 <div class="row g-2 mb-2">
-                                    <div class="col-8"><input type="text" id="f_stu3" class="form-control form-control-sm" placeholder="姓名 3 (選填)"></div>
+                                    <div class="col-8"><input type="text" id="f_stu3" class="form-control form-control-sm" placeholder="姓名 3"></div>
                                     <div class="col-4"><input type="text" id="f_class3" class="form-control form-control-sm" placeholder="班別"></div>
                                 </div>
                                 <div class="row g-2">
-                                    <div class="col-8"><input type="text" id="f_stu4" class="form-control form-control-sm" placeholder="姓名 4 (選填)"></div>
+                                    <div class="col-8"><input type="text" id="f_stu4" class="form-control form-control-sm" placeholder="姓名 4"></div>
                                     <div class="col-4"><input type="text" id="f_class4" class="form-control form-control-sm" placeholder="班別"></div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="mb-3"><label class="small fw-bold">類別</label><select id="f_cat" class="form-select"><option>學術</option><option>體育</option><option>視藝</option><option>音樂</option></select></div>
                         <div class="mb-3">
-                            <label class="small fw-bold">獎項</label>
+                            <label class="small fw-bold">比賽類別</label>
+                            <select id="f_cat" class="form-select">
+                                <option>學術</option>
+                                <option>體育</option>
+                                <option>視藝</option>
+                                <option>音樂</option>
+                                <option>中文</option>
+                                <option>英文</option>
+                                <option>數學</option>
+                                <option>常識</option>
+                                <option>科學</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="small fw-bold">獲獲得獎項</label>
                             <select id="f_award" class="form-select" onchange="checkOther(this, 'f_other_div')">
                                 <option>冠軍</option><option>亞軍</option><option>季軍</option><option>殿軍</option>
                                 <option>金獎</option><option>銀獎</option><option>銅獎</option><option>一等獎</option>
@@ -95,40 +108,55 @@
                             </select>
                         </div>
                         <div id="f_other_div" class="d-none mb-3"><input type="text" id="f_other_val" class="form-control" placeholder="請註明獎項"></div>
-                        <button type="submit" id="submitBtn" class="btn btn-primary w-100 fw-bold shadow-sm py-2">提交數據並發送通知</button>
+                        <button type="submit" id="submitBtn" class="btn btn-primary w-100 fw-bold shadow-sm">提交數據並發送通知</button>
                     </form>
                 </div>
             </div>
             
             <div class="card admin-only border-success shadow-sm">
-                <div class="card-header bg-success text-white fw-bold py-2">管理員工具</div>
-                <div class="card-body py-2 text-center">
-                    <button class="btn btn-outline-success btn-sm w-100 mb-2" onclick="document.getElementById('importFile').click()">📂 匯入 Excel</button>
+                <div class="card-header bg-success text-white fw-bold py-2 text-center">管理員工具</div>
+                <div class="card-body py-2">
+                    <button class="btn btn-outline-success btn-sm w-100 mb-2 fw-bold" onclick="document.getElementById('importFile').click()">📂 匯入 Excel</button>
                     <input type="file" id="importFile" class="d-none" accept=".xlsx, .xls" onchange="handleExcelImport(this)">
-                    <button class="btn btn-outline-dark btn-sm w-100 mb-2" onclick="exportData()">📊 備份雲端全表</button>
+                    <button class="btn btn-outline-dark btn-sm w-100 mb-2 fw-bold" onclick="exportData()">📊 備份全校紀錄</button>
                     <hr>
-                    <button class="btn btn-danger btn-sm w-100 fw-bold" onclick="clearDb()">⚠️ 清空資料庫</button>
+                    <button class="btn btn-danger btn-sm w-100 fw-bold" onclick="clearDb()">⚠️ 清空雲端數據</button>
                 </div>
             </div>
         </div>
 
-        <!-- 右側清單 -->
+        <!-- 右側：清單與複合查詢 -->
         <div class="col-xl-8 col-lg-7">
-            <div class="card p-3 mb-3 border-primary shadow-sm bg-white">
-                <div class="input-group">
-                    <span class="input-group-text bg-primary text-white"><i class="bi bi-search"></i></span>
-                    <input type="text" id="searchInput" class="form-control border-primary" placeholder="輸入學生姓名查詢紀錄..." oninput="refreshUI()">
-                    <button id="exportFilterBtn" class="btn btn-primary d-none" onclick="exportFilteredData()">導出此人報表</button>
+            <div class="search-area shadow-sm border">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="small fw-bold mb-1">1. 按類別篩選</label>
+                        <select id="filterCat" class="form-select border-primary" onchange="refreshUI()">
+                            <option value="">-- 所有類別 --</option>
+                            <option>學術</option><option>體育</option><option>視藝</option><option>音樂</option>
+                            <option>中文</option><option>英文</option><option>數學</option><option>常識</option><option>科學</option>
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="small fw-bold mb-1">2. 搜尋學生姓名</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                            <input type="text" id="searchInput" class="form-control" placeholder="輸入姓名..." oninput="refreshUI()">
+                        </div>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button id="exportFilterBtn" class="btn btn-primary w-100 d-none" onclick="exportFilteredData()">導出此報表</button>
+                    </div>
                 </div>
             </div>
 
             <div class="table-container shadow-sm">
-                <h5 class="fw-bold mb-3">獲獎名單清單</h5>
+                <h5 class="fw-bold mb-3">查詢結果清單</h5>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead class="table-light">
                             <tr>
-                                <th>日期</th><th>比賽名稱</th><th>獲獎學生 (班別)</th><th>類別</th><th>獎項</th>
+                                <th>日期</th><th>比賽名稱</th><th>獲獎學生</th><th>類別</th><th>獎項</th>
                                 <th class="staff-only text-end">操作</th>
                             </tr>
                         </thead>
@@ -140,7 +168,7 @@
     </div>
 </div>
 
-<!-- 密碼視窗 -->
+<!-- 密碼視窗保持不變 -->
 <div class="modal fade" id="loginModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-sm modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">
@@ -148,7 +176,7 @@
             <div class="modal-body text-center p-4">
                 <input type="password" id="loginPwd" class="form-control text-center" placeholder="輸入密碼" autofocus>
             </div>
-            <div class="modal-footer p-1 border-0"><button type="button" class="btn btn-primary w-100" onclick="confirmLogin()">確認</button></div>
+            <div class="modal-footer p-1 border-0"><button type="button" class="btn btn-primary w-100 fw-bold" onclick="confirmLogin()">確認</button></div>
         </div>
     </div>
 </div>
@@ -173,7 +201,7 @@
     const EMAILJS_CONFIG = {
         PUBLIC_KEY: "0niGy89JNRcVppIyj",
         SERVICE_ID: "service_q5gvt5p",
-        TEMPLATE_ID: "template_0w2a28m"
+        TEMPLATE_ID: "template_0w2a28"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -187,26 +215,83 @@
     const awardOptions = ["冠軍", "亞軍", "季軍", "殿軍", "金獎", "銀獎", "銅獎", "一等獎", "二等獎", "優良", "優異獎"];
     const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
 
-    // 實時更新
-    const q = query(colRef, orderBy("date", "desc"));
-    onSnapshot(q, (snapshot) => {
+    onSnapshot(query(colRef, orderBy("date", "desc")), (snapshot) => {
         records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         refreshUI();
     });
 
-    // 提交數據 + 電郵診斷
+    // --- 強化版搜尋與篩選邏輯 ---
+    window.refreshUI = function() {
+        const tbody = document.getElementById('dataTable');
+        const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
+        const catFilter = document.getElementById('filterCat').value;
+        
+        const filtered = records.filter(r => {
+            // 類別過濾
+            const matchesCat = catFilter === "" || r.cat === catFilter;
+            // 姓名過濾
+            const combinedNames = ((r.stu1||"")+(r.stu2||"")+(r.stu3||"")+(r.stu4||"")+(r.student||"")).toLowerCase();
+            const matchesName = combinedNames.includes(searchTerm);
+            
+            return matchesCat && matchesName;
+        });
+
+        document.getElementById('exportFilterBtn').classList.toggle('d-none', (searchTerm==="" && catFilter==="") || filtered.length === 0);
+
+        tbody.innerHTML = filtered.map(r => {
+            const namesArray = [];
+            if (r.stu1) namesArray.push(`${r.stu1}(${r.class1})`);
+            else if (r.student) namesArray.push(`${r.student}(${r.class || r.studentClass || ''})`);
+            if (r.stu2) namesArray.push(`${r.stu2}(${r.class2})`);
+            if (r.stu3) namesArray.push(`${r.stu3}(${r.class3})`);
+            if (r.stu4) namesArray.push(`${r.stu4}(${r.class4})`);
+
+            return `
+                <tr>
+                    <td class="small text-muted">${r.date}</td>
+                    <td class="fw-bold">${r.name}</td>
+                    <td style="font-size:0.9rem;">${namesArray.join(", ")}</td>
+                    <td><span class="badge bg-light text-dark fw-normal">${r.cat}</span></td>
+                    <td class="text-primary fw-bold">${r.award}</td>
+                    <td class="staff-only text-end" style="display:${currentRole!=='viewer'?'table-cell':'none'}">
+                        <button class="btn btn-sm text-danger" onclick="window.delRec('${r.id}')"><i class="bi bi-trash"></i></button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        renderStats(filtered);
+        applyRoleUI(currentRole);
+    }
+
+    // 統計邏輯：按人次計算
+    function renderStats(dataToStat) {
+        const counts = {};
+        let totalP = 0;
+        [...awardOptions, "其他"].forEach(a => counts[a] = 0);
+
+        dataToStat.forEach(r => {
+            let pCount = 0;
+            if (r.stu1) pCount++; if (r.stu2) pCount++; if (r.stu3) pCount++; if (r.stu4) pCount++;
+            if (pCount === 0 && r.student) pCount = 1;
+
+            if (awardOptions.includes(r.award)) counts[r.award] += pCount;
+            else counts["其他"] += pCount;
+            totalP += pCount;
+        });
+
+        document.getElementById('totalCount').innerText = `目前篩選人次: ${totalP} / 雲端總筆數: ${records.length}`;
+        document.getElementById('statsGrid').innerHTML = [...awardOptions, "其他"].map(label => `
+            <div class="col"><div class="stats-item"><div class="small text-muted">${label}</div><div class="stats-val">${counts[label]}</div></div></div>
+        `).join('');
+    }
+
+    // 提交數據
     document.getElementById('recordForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = document.getElementById('submitBtn');
         btn.disabled = true;
-        btn.innerText = "儲存並發信中...";
-
-        const namesArray = [
-            document.getElementById('f_stu1').value.trim(),
-            document.getElementById('f_stu2').value.trim(),
-            document.getElementById('f_stu3').value.trim(),
-            document.getElementById('f_stu4').value.trim()
-        ].filter(Boolean);
+        btn.innerText = "儲存中...";
 
         const selAward = document.getElementById('f_award').value;
         const entry = {
@@ -222,97 +307,37 @@
 
         try {
             await addDoc(colRef, entry);
-            console.log("雲端儲存成功");
-
+            const mNames = [entry.stu1, entry.stu2, entry.stu3, entry.stu4].filter(Boolean).join(", ");
             try {
                 await emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.TEMPLATE_ID, {
                     to_email: "lmw@lkfms.edu.hk",
-                    student_name: namesArray.join(", "),
-                    comp_name: entry.name,
-                    award_name: entry.award,
-                    comp_date: entry.date
+                    student_name: mNames, comp_name: entry.name, award_name: entry.award, comp_date: entry.date
                 });
-                alert("✅ 成功！雲端已同步並發信通知。");
+                alert("✅ 成功！雲端同步並已發信。");
                 e.target.reset();
-                document.getElementById('f_other_div').classList.add('d-none');
-            } catch (mailErr) {
-                const errDetail = mailErr.text || mailErr.message || "未知原因";
-                alert(`⚠️ 資料已儲存，但發信失敗。\n原因: ${errDetail}`);
-            }
+            } catch (mErr) { alert("⚠️ 資料已同步，但發信失敗。"); }
         } catch (dbErr) { alert("❌ 同步失敗: " + dbErr.message); }
         finally { btn.disabled = false; btn.innerText = "提交數據並發信"; }
     });
 
-    // 核心 UI 與 統計邏輯 (按人次計算)
-    window.refreshUI = function() {
-        const tbody = document.getElementById('dataTable');
-        const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
-        
+    // 報表功能
+    window.exportFilteredData = () => {
+        const searchTerm = document.getElementById('searchInput').value.trim();
+        const catFilter = document.getElementById('filterCat').value;
         const filtered = records.filter(r => {
-            const combined = (
-                (r.stu1 || "") + (r.stu2 || "") + (r.stu3 || "") + (r.stu4 || "") + (r.student || "")
-            ).toLowerCase();
-            return combined.includes(searchTerm);
+            const matchesCat = catFilter === "" || r.cat === catFilter;
+            const combined = ((r.stu1||"")+(r.stu2||"")+(r.stu3||"")+(r.stu4||"")+(r.student||"")).toLowerCase();
+            return matchesCat && combined.includes(searchTerm.toLowerCase());
         });
+        const ws = XLSX.utils.json_to_sheet(filtered.map(r => ({
+            "日期": r.date, "比賽名稱": r.name, "學生": [r.stu1, r.stu2, r.stu3, r.stu4, r.student].filter(Boolean).join(", "), "類別": r.cat, "獎項": r.award
+        })));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "FilterReport");
+        XLSX.writeFile(wb, `篩選報告_${catFilter || '全類別'}_${searchTerm || '所有人'}.xlsx`);
+    };
 
-        document.getElementById('exportFilterBtn').classList.toggle('d-none', !searchTerm || filtered.length === 0);
-
-        tbody.innerHTML = filtered.map(r => {
-            const names = [];
-            if (r.stu1) names.push(`${r.stu1}(${r.class1})`);
-            else if (r.student) names.push(`${r.student}(${r.studentClass || r.class || ''})`); // 兼容單人舊格式
-            
-            if (r.stu2) names.push(`${r.stu2}(${r.class2})`);
-            if (r.stu3) names.push(`${r.stu3}(${r.class3})`);
-            if (r.stu4) names.push(`${r.stu4}(${r.class4})`);
-
-            return `
-                <tr>
-                    <td class="small text-muted">${r.date}</td>
-                    <td class="fw-bold">${r.name}</td>
-                    <td style="font-size: 0.9rem;">${names.join(", ")}</td>
-                    <td><span class="badge bg-light text-dark fw-normal">${r.cat}</span></td>
-                    <td class="text-primary fw-bold">${r.award}</td>
-                    <td class="staff-only text-end" style="display:${currentRole!=='viewer'?'table-cell':'none'}">
-                        <button class="btn btn-sm text-danger" onclick="window.delRec('${r.id}')"><i class="bi bi-trash"></i></button>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-
-        renderStats(filtered);
-        applyRoleUI(currentRole);
-    }
-
-    function renderStats(dataToStat) {
-        const counts = {};
-        let totalPeople = 0;
-        [...awardOptions, "其他"].forEach(a => counts[a] = 0);
-
-        dataToStat.forEach(r => {
-            // 計算這筆紀錄有多少個學生
-            let peopleInRecord = 0;
-            if (r.stu1) peopleInRecord++;
-            if (r.stu2) peopleInRecord++;
-            if (r.stu3) peopleInRecord++;
-            if (r.stu4) peopleInRecord++;
-            if (peopleInRecord === 0 && r.student) peopleInRecord = 1; // 舊格式
-
-            if (awardOptions.includes(r.award)) {
-                counts[r.award] += peopleInRecord;
-            } else {
-                counts["其他"] += peopleInRecord;
-            }
-            totalPeople += peopleInRecord;
-        });
-
-        document.getElementById('totalCount').innerText = `目前顯示: ${totalPeople} 人次 / 總計人次: ${totalPeople}`;
-        document.getElementById('statsGrid').innerHTML = [...awardOptions, "其他"].map(label => `
-            <div class="col"><div class="stats-item"><div class="small text-muted">${label}</div><div class="stats-val">${counts[label]}</div></div></div>
-        `).join('');
-    }
-
-    // 其他原有工具函數
+    // 其他原有代碼
     window.triggerLogin = (role) => { window.pendingRole = role; document.getElementById('loginPwd').value = ''; loginModal.show(); setTimeout(() => document.getElementById('loginPwd').focus(), 500);};
     window.confirmLogin = () => {
         if (btoa(document.getElementById('loginPwd').value) === PASS[window.pendingRole]) {
@@ -328,14 +353,13 @@
         document.querySelectorAll('.admin-only').forEach(el => el.style.display = role === 'admin' ? 'block' : 'none');
     }
     window.logout = () => { currentRole = 'viewer'; localStorage.setItem('lkfm_role', 'viewer'); applyRoleUI('viewer'); };
-    window.delRec = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "competition_records", id)); };
+    window.delRec = async (id) => { if(confirm("確定刪除？")) await deleteDoc(doc(db, "competition_records", id)); };
     window.clearDb = async () => {
-        if(!confirm("⚠️ 警告：這將清空所有數據！")) return;
+        if(!confirm("⚠️ 警告：這將徹底清空雲端數據！")) return;
         const snapshot = await getDocs(colRef);
         const batch = writeBatch(db);
         snapshot.docs.forEach(d => batch.delete(d.ref));
-        await batch.commit();
-        alert("資料庫已清空");
+        await batch.commit(); alert("數據已清空");
     };
     window.handleExcelImport = (input) => {
         const reader = new FileReader();
@@ -350,7 +374,7 @@
                 batch.set(doc(colRef), {
                     date: cleanRow["日期"] || cleanRow["比賽日期"] || "",
                     name: cleanRow["比賽名稱"] || cleanRow["名稱"] || "未命名",
-                    stu1: cleanRow["學生姓名"] || cleanRow["姓名"] || "未對齊", class1: cleanRow["班別"] || "",
+                    stu1: cleanRow["學生姓名"] || cleanRow["姓名"] || "未辨識", class1: cleanRow["班別"] || "",
                     cat: cleanRow["類別"] || "學術", award: cleanRow["獎項"] || "優異獎"
                 });
             });
@@ -359,18 +383,8 @@
         reader.readAsArrayBuffer(input.files[0]);
     };
     window.exportData = () => {
-        const ws = XLSX.utils.json_to_sheet(records.map(r => ({
-            "日期": r.date, "比賽名稱": r.name, "學生": [r.stu1, r.stu2, r.stu3, r.stu4].filter(Boolean).join(", "), "獎項": r.award
-        })));
-        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Records"); XLSX.writeFile(wb, "LKFM_Backup.xlsx");
-    };
-    window.exportFilteredData = () => {
-        const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
-        const filtered = records.filter(r => ( (r.stu1||"")+(r.stu2||"")+(r.stu3||"")+(r.stu4||"")+(r.student||"") ).toLowerCase().includes(searchTerm) );
-        const ws = XLSX.utils.json_to_sheet(filtered.map(r => ({
-            "日期": r.date, "比賽名稱": r.name, "學生": [r.stu1, r.stu2, r.stu3, r.stu4, r.student].filter(Boolean).join(", "), "獎項": r.award
-        })));
-        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Individual_Report"); XLSX.writeFile(wb, `${searchTerm}_Report.xlsx`);
+        const ws = XLSX.utils.json_to_sheet(records);
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "FullBackup"); XLSX.writeFile(wb, "LKFM_Full_Backup.xlsx");
     };
     window.checkOther = (sel, divId) => document.getElementById(divId).classList.toggle('d-none', sel.value !== '其他');
 </script>
