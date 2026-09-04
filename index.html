@@ -3,36 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LKFM 比賽成績管理系統 - 班別修正版</title>
-    <!-- 資源引入 -->
+    <title>LKFMS學生的公開成績輸入系統</title>
+    <!-- 引入穩定 CDN 資源 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     
     <style>
-        :root { --primary-dark: #2c3e50; }
-        body { background-color: #f4f7f6; font-family: "Microsoft JhengHei", sans-serif; }
+        :root { --primary-dark: #2c3e50; --staff-blue: #0d6efd; --admin-red: #dc3545; }
+        body { background-color: #f4f7f6; font-family: "Microsoft JhengHei", "Segoe UI", sans-serif; }
         .navbar { background-color: var(--primary-dark) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
         .card { border: none; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .staff-only, .admin-only { display: none; } 
         .role-badge { padding: 5px 15px; border-radius: 50px; font-weight: bold; font-size: 0.85rem; }
         .stats-item { background: white; padding: 12px 5px; border-radius: 10px; border: 1px solid #eee; text-align: center; height: 100%; transition: 0.2s; }
-        .stats-val { font-size: 1.25rem; font-weight: bold; color: #0d6efd; }
+        .stats-item:hover { border-color: var(--staff-blue); background: #f8fbff; }
+        .stats-val { font-size: 1.25rem; font-weight: bold; color: var(--staff-blue); }
         .table-container { background: white; border-radius: 12px; padding: 20px; min-height: 400px; }
         .student-input-group { background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #dee2e6; }
-        .search-area { background: #ffffff; border-radius: 12px; padding: 15px; margin-bottom: 20px; border: 1px solid #0d6efd; }
+        .feedback-area { background: #fff3cd; border-left: 5px solid #ffc107; padding: 15px; border-radius: 8px; }
     </style>
 </head>
 <body>
 
-<nav class="navbar navbar-expand navbar-dark mb-4">
-    <div class="container-fluid px-4">
-        <a class="navbar-brand fw-bold" href="#"><i class="bi bi-shield-fill-check me-2"></i>LKFM 成績管理系統 (班別修正版)</a>
+<!-- 頂部導覽 -->
+<nav class="navbar navbar-expand navbar-dark mb-4 px-3">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="#"><i class="bi bi-award-fill me-2"></i>LKFMS學生的公開成績輸入系統</a>
         <div class="ms-auto d-flex align-items-center">
-            <span id="roleDisplay" class="role-badge bg-secondary text-white me-3">讀取中...</span>
+            <span id="roleDisplay" class="role-badge bg-secondary text-white me-3">訪客模式</span>
             <div class="dropdown">
-                <button class="btn btn-outline-light btn-sm dropdown-toggle fw-bold" type="button" data-bs-toggle="dropdown">身分切換</button>
+                <button class="btn btn-outline-light btn-sm dropdown-toggle fw-bold" type="button" data-bs-toggle="dropdown">切換權限</button>
                 <ul class="dropdown-menu dropdown-menu-end shadow">
                     <li><a class="dropdown-item" href="javascript:void(0)" onclick="triggerLogin('staff')">教職員 (Staff)</a></li>
                     <li><a class="dropdown-item" href="javascript:void(0)" onclick="triggerLogin('admin')">管理員 (Admin)</a></li>
@@ -45,37 +47,39 @@
 </nav>
 
 <div class="container-fluid px-4">
-    <!-- 統計面板 -->
-    <div class="card p-3 mb-4 shadow-sm border-0">
+    <!-- 獲獎人次統計面板 -->
+    <div class="card p-3 mb-4 border-0 shadow-sm">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h6 class="fw-bold m-0 text-secondary"><i class="bi bi-people-fill me-2"></i>獲獎人次統計 <small id="backupStatus" class="ms-2 text-success" style="font-size:0.75rem"></small></h6>
+            <h6 class="fw-bold m-0 text-secondary"><i class="bi bi-people-fill me-2"></i>即時獲獎人次統計 (按人數計)</h6>
             <span class="badge bg-primary fs-6" id="totalCount">載入中...</span>
         </div>
         <div class="row row-cols-2 row-cols-md-4 row-cols-xl-6 g-2" id="statsGrid"></div>
+        <small id="backupStatus" class="mt-2 text-success fw-bold text-end" style="display: block; height: 20px;"></small>
     </div>
 
     <div class="row">
-        <!-- 左側面板 -->
-        <div class="col-xl-4 col-lg-5 staff-only">
-            <div class="card shadow-sm mb-3">
-                <div class="card-header bg-primary text-white fw-bold">新增獲獎紀錄</div>
+        <!-- 左側：輸入表單與功能 -->
+        <div class="col-xl-4 col-lg-5">
+            <!-- 成績輸入 (Staff/Admin 可見) -->
+            <div class="card shadow-sm mb-3 staff-only border-start border-4 border-primary">
+                <div class="card-header bg-white fw-bold py-3 text-primary">新增獲獎紀錄</div>
                 <div class="card-body">
                     <form id="recordForm">
-                        <div class="mb-3"><label class="small fw-bold">比賽日期</label><input type="date" id="f_date" class="form-control" required></div>
-                        <div class="mb-3"><label class="small fw-bold">比賽名稱</label><input type="text" id="f_name" class="form-control" placeholder="請輸入比賽全稱" required></div>
+                        <div class="mb-2"><label class="small fw-bold">比賽日期</label><input type="date" id="f_date" class="form-control" required></div>
+                        <div class="mb-2"><label class="small fw-bold">比賽名稱</label><input type="text" id="f_name" class="form-control" placeholder="全稱" required></div>
                         
                         <div class="mb-3">
-                            <label class="small fw-bold text-primary">獲獎學生 (最多4人)</label>
-                            <div class="student-input-group mt-1">
-                                <div class="row g-2 mb-2">
+                            <label class="small fw-bold text-primary">獲獎學生與班別 (最多4人)</label>
+                            <div class="student-input-group">
+                                <div class="row g-2 mb-1">
                                     <div class="col-8"><input type="text" id="f_stu1" class="form-control form-control-sm" placeholder="姓名 1" required></div>
                                     <div class="col-4"><input type="text" id="f_class1" class="form-control form-control-sm" placeholder="班別" required></div>
                                 </div>
-                                <div class="row g-2 mb-2">
+                                <div class="row g-2 mb-1">
                                     <div class="col-8"><input type="text" id="f_stu2" class="form-control form-control-sm" placeholder="姓名 2"></div>
                                     <div class="col-4"><input type="text" id="f_class2" class="form-control form-control-sm" placeholder="班別"></div>
                                 </div>
-                                <div class="row g-2 mb-2">
+                                <div class="row g-2 mb-1">
                                     <div class="col-8"><input type="text" id="f_stu3" class="form-control form-control-sm" placeholder="姓名 3"></div>
                                     <div class="col-4"><input type="text" id="f_class3" class="form-control form-control-sm" placeholder="班別"></div>
                                 </div>
@@ -86,75 +90,86 @@
                             </div>
                         </div>
 
-                        <div class="row mb-3">
+                        <div class="row mb-2">
                             <div class="col-6">
                                 <label class="small fw-bold">類別</label>
                                 <select id="f_cat" class="form-select">
-                                    <option>學術</option><option>體育</option><option>視藝</option><option>音樂</option>
                                     <option>中文</option><option>英文</option><option>數學</option><option>常識</option><option>科學</option>
+                                    <option>體育</option><option>視藝</option><option>音樂</option><option>學術</option>
                                 </select>
                             </div>
-                            <div class="col-6">
-                                <label class="small fw-bold">負責老師</label>
-                                <input type="text" id="f_teacher" class="form-control" placeholder="老師姓名" required>
-                            </div>
+                            <div class="col-6"><label class="small fw-bold">負責老師</label><input type="text" id="f_teacher" class="form-control" placeholder="負責老師" required></div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="small fw-bold">獲得獎項</label>
-                            <select id="f_award" class="form-select">
+                            <label class="small fw-bold">獎項</label>
+                            <select id="f_award" class="form-select" onchange="checkOther(this, 'f_other_div')">
                                 <option>冠軍</option><option>亞軍</option><option>季軍</option><option>殿軍</option>
-                                <option>金獎</option><option>銀獎</option><option>銅獎</option><option>一等獎</option>
-                                <option>二等獎</option><option>優良</option><option>優異獎</option>
+                                <option>金獎</option><option>銀獎</option><option>銅獎</option>
+                                <option>一等獎</option><option>二等獎</option><option>優良</option><option>優異獎</option>
+                                <option value="其他">其他...</option>
                             </select>
                         </div>
-                        <button type="submit" id="submitBtn" class="btn btn-primary w-100 fw-bold shadow-sm">提交數據 (自動備份)</button>
+                        <div id="f_other_div" class="d-none mb-3"><input type="text" id="f_other_val" class="form-control" placeholder="請註明獎項"></div>
+                        <button type="submit" id="submitBtn" class="btn btn-primary w-100 fw-bold shadow-sm">提交數據並發信通知</button>
                     </form>
                 </div>
             </div>
 
-            <div class="card shadow-sm border-success">
-                <div class="card-header bg-success text-white py-2 fw-bold">批次工具 (Staff/Admin)</div>
+            <!-- 批量處理 (Staff/Admin 可見) -->
+            <div class="card shadow-sm border-success staff-only">
+                <div class="card-header bg-success text-white fw-bold py-2">批次工具 & 備份</div>
                 <div class="card-body">
-                    <button class="btn btn-outline-success btn-sm w-100 mb-2 fw-bold" onclick="downloadTemplate()">下載匯入樣本 (Excel)</button>
+                    <button class="btn btn-outline-success btn-sm w-100 mb-2 fw-bold" onclick="downloadTemplate()">下載匯入樣本</button>
                     <button class="btn btn-success btn-sm w-100 mb-2 fw-bold" onclick="document.getElementById('importFile').click()">批量 Excel 匯入</button>
                     <input type="file" id="importFile" class="d-none" accept=".xlsx" onchange="handleExcelImport(this)">
-                    <button class="btn btn-dark btn-sm w-100 fw-bold" onclick="exportData()">導出雲端全表備份</button>
-                    <hr class="admin-only">
-                    <button class="btn btn-danger btn-sm w-100 fw-bold admin-only" onclick="clearDb()">⚠️ 清空資料庫 (只限 Admin)</button>
+                    <button class="btn btn-dark btn-sm w-100 mb-2 fw-bold" onclick="exportData()">導出雲端全表備份</button>
+                    <div class="admin-only">
+                        <button class="btn btn-warning btn-sm w-100 mb-2 fw-bold" data-bs-toggle="modal" data-bs-target="#feedbackModal"><i class="bi bi-chat-left-dots"></i> 查看意見紀錄</button>
+                        <button class="btn btn-danger btn-sm w-100 fw-bold" onclick="clearDb()">⚠️ 清空雲端 (Admin)</button>
+                    </div>
                 </div>
+            </div>
+
+            <!-- 意見留言板 (所有人可見) -->
+            <div class="card shadow-sm feedback-area">
+                <h6 class="fw-bold mb-2"><i class="bi bi-chat-right-text-fill me-1"></i> 意見留言板</h6>
+                <textarea id="feedbackContent" class="form-control mb-2" rows="2" placeholder="請輸入對本系統的修改意見..."></textarea>
+                <button class="btn btn-warning btn-sm w-100 fw-bold" id="feedbackBtn" onclick="submitFeedback()">發送留言至主任信箱</button>
             </div>
         </div>
 
-        <!-- 右側清單 -->
+        <!-- 右側：資料清單與搜尋 -->
         <div class="col-xl-8 col-lg-7">
-            <div class="search-area shadow-sm">
+            <div class="card p-3 mb-3 border-primary shadow-sm bg-white">
                 <div class="row g-2">
                     <div class="col-md-4">
-                        <select id="filterCat" class="form-select" onchange="refreshUI()">
+                        <select id="filterCat" class="form-select border-primary" onchange="refreshUI()">
                             <option value="">-- 所有類別 --</option>
                             <option>中文</option><option>英文</option><option>數學</option><option>常識</option><option>科學</option>
-                            <option>學術</option><option>體育</option><option>視藝</option><option>音樂</option>
+                            <option>體育</option><option>視藝</option><option>音樂</option><option>學術</option>
                         </select>
                     </div>
                     <div class="col-md-5">
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-search"></i></span>
-                            <input type="text" id="searchInput" class="form-control" placeholder="搜尋學生、班別(如 4A)、比賽、老師..." oninput="refreshUI()">
-                        </div>
+                        <input type="text" id="searchInput" class="form-control border-primary" placeholder="搜尋學生、班別、比賽或老師..." oninput="refreshUI()">
                     </div>
                     <div class="col-md-3">
-                        <button id="exportFilterBtn" class="btn btn-primary w-100 d-none fw-bold" onclick="exportFilteredData()">導出查詢報告</button>
+                        <button id="exportFilterBtn" class="btn btn-primary w-100 d-none fw-bold" onclick="exportFilteredData()">導出此查詢報表</button>
                     </div>
                 </div>
             </div>
 
-            <div class="table-container shadow-sm">
+            <div class="table-container shadow-sm card p-0 overflow-hidden">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle">
+                    <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>日期</th><th>比賽名稱</th><th>獲獎學生(班別)</th><th>老師</th><th>獎項</th><th class="staff-only">操作</th>
+                                <th style="width: 100px;">日期</th>
+                                <th>比賽詳情</th>
+                                <th>獲獎名單 (班別)</th>
+                                <th>老師</th>
+                                <th>獎項</th>
+                                <th class="staff-only text-end" style="width: 60px;"></th>
                             </tr>
                         </thead>
                         <tbody id="dataTable"></tbody>
@@ -165,15 +180,27 @@
     </div>
 </div>
 
-<!-- 密碼視窗保持不變 -->
+<!-- 留言查看彈窗 (Admin Only) -->
+<div class="modal fade" id="feedbackModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header bg-warning fw-bold">系統意見反饋紀錄</div>
+            <div class="modal-body p-0">
+                <div id="feedbackList" class="list-group list-group-flush"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 登入驗證視窗 -->
 <div class="modal fade" id="loginModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-sm modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">
-            <div class="modal-header py-2 bg-light"><h6 class="modal-title">身份驗證</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-header py-2 bg-light"><h6 class="modal-title">權限驗證</h6></div>
             <div class="modal-body p-4 text-center">
-                <input type="password" id="loginPwd" class="form-control text-center" placeholder="輸入密碼" autofocus>
+                <input type="password" id="loginPwd" class="form-control text-center" placeholder="請輸入密碼" autofocus>
             </div>
-            <div class="modal-footer p-1 border-0"><button class="btn btn-primary w-100 fw-bold" onclick="confirmLogin()">確認</button></div>
+            <div class="modal-footer p-1 border-0"><button class="btn btn-primary w-100 fw-bold" onclick="confirmLogin()">登入</button></div>
         </div>
     </div>
 </div>
@@ -182,9 +209,10 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, writeBatch, getDocs, serverTimestamp } 
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, writeBatch, getDocs, serverTimestamp, limit } 
     from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+    // 1. Firebase 配置 (已套用主任提供之金鑰)
     const firebaseConfig = {
         apiKey: "AIzaSyBD1iahWhbqDElEaZGIS8YAdQR3RtdqS8s",
         authDomain: "lkfms-30e77.firebaseapp.com",
@@ -195,6 +223,7 @@
         measurementId: "G-89SXL5Z2CQ"
     };
 
+    // 2. EmailJS 配置 (已填入主任提供之 ID)
     const EMAILJS_CONFIG = {
         PUBLIC_KEY: "0niGy89JNRcVppIyj",
         SERVICE_ID: "service_q5gvt5p",
@@ -205,7 +234,8 @@
     const db = getFirestore(app);
     const colRef = collection(db, "competition_records");
     const backupRef = collection(db, "system_backups");
-
+    const feedbackRef = collection(db, "system_feedback");
+    
     emailjs.init(EMAILJS_CONFIG.PUBLIC_KEY);
 
     let records = [];
@@ -214,199 +244,191 @@
     const awardOptions = ["冠軍", "亞軍", "季軍", "殿軍", "金獎", "銀獎", "銅獎", "一等獎", "二等獎", "優良", "優異獎"];
     const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
 
-    onSnapshot(query(colRef, orderBy("date", "desc")), (snapshot) => {
-        records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // --- 即時監聽：成績與意見 ---
+    onSnapshot(query(colRef, orderBy("date", "desc")), (s) => {
+        records = s.docs.map(d => ({ id: d.id, ...d.data() }));
         refreshUI();
     });
 
-    // --- 自動備份 ---
-    async function triggerBackup(type) {
+    onSnapshot(query(feedbackRef, orderBy("timestamp", "desc"), limit(50)), (s) => {
+        const list = document.getElementById('feedbackList');
+        if (s.empty) { list.innerHTML = '<p class="text-center py-4 text-muted">目前尚無意見紀錄</p>'; return; }
+        list.innerHTML = s.docs.map(d => {
+            const data = d.data();
+            const time = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString() : '剛才';
+            return `<div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between"><h6 class="mb-1 fw-bold text-primary">意見回饋</h6><small>${time}</small></div>
+                        <p class="mb-1 small">${data.content}</p>
+                    </div>`;
+        }).join('');
+    });
+
+    // --- 自動備份邏輯 ---
+    async function performBackup(actionType) {
+        document.getElementById('backupStatus').innerText = "☁️ 雲端備份中...";
         try {
             await addDoc(backupRef, {
-                timestamp: serverTimestamp(), action: type, data: JSON.stringify(records)
+                timestamp: serverTimestamp(),
+                action: actionType,
+                dataSnapshot: JSON.stringify(records)
             });
-            document.getElementById('backupStatus').innerText = "☁️ 已自動備份雲端";
-        } catch (e) { console.error("Backup failed", e); }
+            document.getElementById('backupStatus').innerText = "✅ 自動備份已完成";
+            setTimeout(()=> document.getElementById('backupStatus').innerText = "", 3000);
+        } catch (e) { console.error("Backup error", e); }
     }
 
-    // --- 核心修正：UI 顯示與搜尋 ---
+    // --- 核心：UI 刷新與搜尋 (兼容新舊格式) ---
     window.refreshUI = function() {
         const tbody = document.getElementById('dataTable');
-        const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
-        const catFilter = document.getElementById('filterCat').value;
+        const search = document.getElementById('searchInput').value.trim().toLowerCase();
+        const cat = document.getElementById('filterCat').value;
         
         const filtered = records.filter(r => {
-            const matchesCat = catFilter === "" || r.cat === catFilter;
-            // 搜尋範圍加入所有學生姓名、班別、老師、比賽名
+            const matchesCat = cat === "" || r.cat === cat;
             const content = (
-                (r.stu1||"") + (r.class1||"") + 
-                (r.stu2||"") + (r.class2||"") + 
-                (r.stu3||"") + (r.class3||"") + 
-                (r.stu4||"") + (r.class4||"") + 
-                (r.student||"") + (r.studentClass||"") + (r.class||"") + 
-                (r.name||"") + (r.teacher||"")
+                (r.stu1||"")+(r.class1||"")+(r.stu2||"")+(r.class2||"")+
+                (r.stu3||"")+(r.class3||"")+(r.stu4||"")+(r.class4||"")+
+                (r.student||"")+(r.class||"")+(r.name||"")+(r.teacher||"")
             ).toLowerCase();
-            return matchesCat && content.includes(searchTerm);
+            return matchesCat && content.includes(search);
         });
 
-        document.getElementById('exportFilterBtn').classList.toggle('d-none', (searchTerm==="" && catFilter==="") || filtered.length === 0);
+        document.getElementById('exportFilterBtn').classList.toggle('d-none', (search==="" && cat==="") || filtered.length === 0);
 
         tbody.innerHTML = filtered.map(r => {
-            // 修正顯示邏輯：將姓名與班別配對顯示
-            const infoArray = [];
-            if (r.stu1) infoArray.push(`${r.stu1}(${r.class1 || ''})`);
-            else if (r.student) infoArray.push(`${r.student}(${r.class || r.studentClass || ''})`); // 兼容舊數據
+            const arr = [];
+            if (r.stu1) arr.push(`${r.stu1}(${r.class1})`); 
+            else if(r.student) arr.push(`${r.student}(${r.class || r.studentClass || ''})`);
             
-            if (r.stu2) infoArray.push(`${r.stu2}(${r.class2 || ''})`);
-            if (r.stu3) infoArray.push(`${r.stu3}(${r.class3 || ''})`);
-            if (r.stu4) infoArray.push(`${r.stu4}(${r.class4 || ''})`);
+            if (r.stu2) arr.push(`${r.stu2}(${r.class2})`);
+            if (r.stu3) arr.push(`${r.stu3}(${r.class3})`);
+            if (r.stu4) arr.push(`${r.stu4}(${r.class4})`);
 
-            return `
-                <tr>
-                    <td class="small text-muted">${r.date}</td>
-                    <td class="fw-bold">${r.name}<br><span class="badge bg-light text-dark fw-normal">${r.cat}</span></td>
-                    <td style="font-size:0.85rem">${infoArray.join(", ")}</td>
-                    <td class="text-secondary small">${r.teacher || '---'}</td>
-                    <td class="text-primary fw-bold">${r.award}</td>
-                    <td class="staff-only" style="display:${currentRole!=='viewer'?'table-cell':'none'}">
-                        <button class="btn btn-sm text-danger" onclick="window.delRec('${r.id}')"><i class="bi bi-trash"></i></button>
-                    </td>
-                </tr>
-            `;
+            return `<tr>
+                <td class="small text-muted">${r.date}</td>
+                <td><b>${r.name}</b><br><small class="badge bg-light text-dark fw-normal border">${r.cat}</small></td>
+                <td class="small">${arr.join(", ")}</td>
+                <td class="small text-secondary">${r.teacher || '---'}</td>
+                <td class="text-primary fw-bold">${r.award}</td>
+                <td class="staff-only text-end" style="display:${currentRole!=='viewer'?'table-cell':'none'}">
+                    <button class="btn btn-sm text-danger" onclick="window.delRec('${r.id}')"><i class="bi bi-trash"></i></button>
+                </td>
+            </tr>`;
         }).join('');
 
         renderStats(filtered);
         applyRoleUI(currentRole);
     }
 
-    // --- 核心修正：導出全表備份 (加入班別) ---
-    window.exportData = () => {
-        const dataForXls = records.map(r => {
-            const infoArr = [];
-            if (r.stu1) infoArr.push(`${r.stu1}(${r.class1 || ''})`);
-            else if (r.student) infoArr.push(`${r.student}(${r.class || r.studentClass || ''})`);
-            if (r.stu2) infoArr.push(`${r.stu2}(${r.class2 || ''})`);
-            if (r.stu3) infoArr.push(`${r.stu3}(${r.class3 || ''})`);
-            if (r.stu4) infoArr.push(`${r.stu4}(${r.class4 || ''})`);
-
-            return {
-                "日期": r.date,
-                "比賽名稱": r.name,
-                "獲獎學生(班別)": infoArr.join(", "),
-                "負責老師": r.teacher,
-                "類別": r.cat,
-                "獎項": r.award
-            };
-        });
-        const ws = XLSX.utils.json_to_sheet(dataForXls);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Cloud_Full_Backup");
-        XLSX.writeFile(wb, `LKFM_全校比賽紀錄_${new Date().toISOString().slice(0,10)}.xlsx`);
-    };
-
     // --- 統計人次 ---
     function renderStats(data) {
-        const counts = {}; let total = 0;
+        const counts = {}; let totalPeople = 0;
         [...awardOptions, "其他"].forEach(a => counts[a] = 0);
         data.forEach(r => {
-            let pCount = [r.stu1, r.stu2, r.stu3, r.stu4].filter(Boolean).length;
-            if (pCount === 0 && r.student) pCount = 1;
+            let pCount = [r.stu1, r.stu2, r.stu3, r.stu4].filter(Boolean).length || (r.student?1:0);
             if (awardOptions.includes(r.award)) counts[r.award] += pCount; else counts["其他"] += pCount;
-            total += pCount;
+            totalPeople += pCount;
         });
-        document.getElementById('totalCount').innerText = `篩選人次: ${total} / 雲端總筆數: ${records.length}`;
+        document.getElementById('totalCount').innerText = `目前顯示: ${totalPeople} 人次`;
         document.getElementById('statsGrid').innerHTML = [...awardOptions, "其他"].map(l => `
             <div class="col"><div class="stats-item"><div class="small text-muted">${l}</div><div class="stats-val">${counts[l]}</div></div></div>
         `).join('');
     }
 
-    // --- 提交數據 ---
+    // --- 提交獲獎數據 ---
     document.getElementById('recordForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const btn = document.getElementById('submitBtn');
-        btn.disabled = true; btn.innerText = "同步中...";
+        const btn = document.getElementById('submitBtn'); btn.disabled = true; btn.innerText = "同步發信中...";
 
+        const names = [document.getElementById('f_stu1').value, document.getElementById('f_stu2').value, document.getElementById('f_stu3').value, document.getElementById('f_stu4').value].filter(Boolean);
         const entry = {
-            date: document.getElementById('f_date').value,
-            name: document.getElementById('f_name').value,
+            date: document.getElementById('f_date').value, name: document.getElementById('f_name').value,
             stu1: document.getElementById('f_stu1').value, class1: document.getElementById('f_class1').value,
-            stu2: document.getElementById('f_stu2').value || "", class2: document.getElementById('f_class2').value || "",
-            stu3: document.getElementById('f_stu3').value || "", class3: document.getElementById('f_class3').value || "",
-            stu4: document.getElementById('f_stu4').value || "", class4: document.getElementById('f_class4').value || "",
-            teacher: document.getElementById('f_teacher').value,
-            cat: document.getElementById('f_cat').value,
-            award: document.getElementById('f_award').value
+            stu2: document.getElementById('f_stu2').value||"", class2: document.getElementById('f_class2').value||"",
+            stu3: document.getElementById('f_stu3').value||"", class3: document.getElementById('f_class3').value||"",
+            stu4: document.getElementById('f_stu4').value||"", class4: document.getElementById('f_class4').value||"",
+            teacher: document.getElementById('f_teacher').value, cat: document.getElementById('f_cat').value,
+            award: (document.getElementById('f_award').value === '其他' ? document.getElementById('f_other_val').value : document.getElementById('f_award').value)
         };
 
         try {
             await addDoc(colRef, entry);
-            await triggerBackup("NEW_ENTRY");
-            const names = [entry.stu1, entry.stu2, entry.stu3, entry.stu4].filter(Boolean).join(", ");
-            try {
-                await emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.TEMPLATE_ID, {
-                    to_email: "lmw@lkfms.edu.hk", student_name: names, comp_name: entry.name, award_name: entry.award, comp_date: entry.date
-                });
-                alert("✅ 成功！雲端已同步並自動備份。");
-                e.target.reset();
-            } catch (mErr) { alert("⚠️ 資料已同步，但發信失敗。"); }
-        } catch (dbErr) { alert("❌ 同步失敗: " + dbErr.message); }
-        finally { btn.disabled = false; btn.innerText = "提交數據 (自動備份)"; }
+            await performBackup("ADD_RECORD");
+            await emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.TEMPLATE_ID, {
+                to_email: "lmw@lkfms.edu.hk",
+                student_name: names.join(", "),
+                comp_name: entry.name,
+                award_name: entry.award,
+                comp_date: entry.date
+            });
+            alert("✅ 成功存入雲端，自動備份完成，已發信通知 lmw 主任。");
+            e.target.reset();
+        } catch (err) { alert("❌ 操作失敗: " + (err.text || err.message)); }
+        finally { btn.disabled = false; btn.innerText = "提交數據並發信通知"; }
     });
 
-    // --- 批次匯入 (自動識別姓名班別) ---
-    window.handleExcelImport = (input) => {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            const arr = new Uint8Array(e.target.result);
-            const wb = XLSX.read(arr, { type: 'array', cellDates: true });
-            const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-            const batch = writeBatch(db);
-            json.forEach(row => {
-                const c = {}; Object.keys(row).forEach(k => c[k.toString().trim().replace(/\s/g, '')] = row[k]);
-                batch.set(doc(colRef), {
-                    date: c["日期"] || c["比賽日期"] || "",
-                    name: c["比賽名稱"] || c["名稱"] || "",
-                    stu1: c["學生姓名"] || c["姓名"] || "未辨識", class1: c["班別"] || "",
-                    teacher: c["負責老師"] || c["老師"] || "",
-                    cat: c["類別"] || "學術", award: c["獎項"] || "優異獎"
-                });
+    // --- 提交意見留言 ---
+    window.submitFeedback = async function() {
+        const text = document.getElementById('feedbackContent').value.trim();
+        if (!text) return alert("請輸入留言內容！");
+        const btn = document.getElementById('feedbackBtn'); btn.disabled = true; btn.innerText = "傳送中...";
+
+        try {
+            await addDoc(feedbackRef, { content: text, timestamp: serverTimestamp(), role: currentRole });
+            await emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.TEMPLATE_ID, {
+                to_email: "lmw@lkfms.edu.hk",
+                student_name: "系統意見板", comp_name: "修改建議", award_name: text, comp_date: new Date().toLocaleDateString()
             });
-            await batch.commit(); await triggerBackup("BATCH_IMPORT");
-            alert("匯入成功且雲端已完成備份！"); input.value = "";
-        };
-        reader.readAsArrayBuffer(input.files[0]);
+            alert("✅ 您的意見已成功發送給 lmw 主任！");
+            document.getElementById('feedbackContent').value = "";
+        } catch (e) { alert("傳送失敗。"); }
+        finally { btn.disabled = false; btn.innerText = "發送留言至主任信箱"; }
     };
 
-    // --- 其他原有功能 ---
+    // --- 批次處理功能 ---
     window.downloadTemplate = () => {
-        const ws = XLSX.utils.json_to_sheet([{"日期":"2024-01-01","比賽名稱":"全港賽","姓名":"張三","班別":"4A","負責老師":"王老師","類別":"數學","獎項":"冠軍"}]);
-        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "樣本"); XLSX.writeFile(wb, "LKFM_樣本.xlsx");
+        const ws = XLSX.utils.json_to_sheet([{"日期":"2024-01-01","比賽名稱":"範例比賽","姓名":"張三","班別":"4A","負責老師":"王老師","類別":"數學","獎項":"冠軍"}]);
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Sheet1"); XLSX.writeFile(wb, "LKFMS匯入樣本.xlsx");
     };
-    window.triggerLogin = (role) => { window.pendingRole = role; document.getElementById('loginPwd').value = ''; loginModal.show(); setTimeout(() => document.getElementById('loginPwd').focus(), 500);};
-    window.confirmLogin = () => {
-        if (btoa(document.getElementById('loginPwd').value) === PASS[window.pendingRole]) {
-            currentRole = window.pendingRole; localStorage.setItem('lkfm_role', currentRole);
-            loginModal.hide(); applyRoleUI(currentRole);
-        } else { alert("密碼錯誤！"); }
+
+    window.handleExcelImport = (input) => {
+        const reader = new FileReader(); reader.onload = async (e) => {
+            const json = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(e.target.result), {type:'array'}).Sheets[XLSX.read(new Uint8Array(e.target.result), {type:'array'}).SheetNames[0]]);
+            const b = writeBatch(db); json.forEach(row => {
+                const c = {}; Object.keys(row).forEach(k => c[k.toString().trim().replace(/\s/g, '')] = row[k]);
+                b.set(doc(colRef), { date: c["日期"]||"", name: c["比賽名稱"]||"", stu1: c["姓名"]||"", class1: c["班別"]||"", teacher: c["負責老師"]||"", cat: c["類別"]||"學術", award: c["獎項"]||"優異獎" });
+            });
+            await b.commit(); await performBackup("BATCH_IMPORT"); alert("批量匯入完成且雲端備份成功！");
+        }; reader.readAsArrayBuffer(input.files[0]);
     };
-    function applyRoleUI(role) {
-        const b = document.getElementById('roleDisplay');
-        b.innerText = role === 'admin' ? '管理員' : (role === 'staff' ? '教職員' : '訪客模式');
-        b.className = `role-badge text-white ${role === 'admin' ? 'bg-danger' : (role === 'staff' ? 'bg-primary' : 'bg-secondary')}`;
-        document.querySelectorAll('.staff-only').forEach(el => el.style.display = role !== 'viewer' ? 'block' : 'none');
-        document.querySelectorAll('.admin-only').forEach(el => el.style.display = role === 'admin' ? 'block' : 'none');
-        refreshUI();
-    }
-    window.logout = () => { currentRole = 'viewer'; localStorage.setItem('lkfm_role', 'viewer'); applyRoleUI('viewer'); };
-    window.delRec = async (id) => { if(confirm("確定刪除？")) { await deleteDoc(doc(db, "competition_records", id)); triggerBackup("DELETE"); } };
-    window.clearDb = async () => { if(confirm("⚠️ 警告：徹底清空？")) { const s = await getDocs(colRef); const b = writeBatch(db); s.docs.forEach(d => b.delete(d.ref)); await b.commit(); triggerBackup("CLEAR_ALL"); } };
+
+    window.exportData = () => {
+        const data = records.map(r => ({ "日期":r.date, "比賽":r.name, "學生":[r.stu1,r.stu2,r.stu3,r.stu4,r.student].filter(Boolean).join(", "), "老師":r.teacher, "類別":r.cat, "獎項":r.award }));
+        const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Backup"); XLSX.writeFile(wb, "LKFMS_Full_Backup.xlsx");
+    };
+
     window.exportFilteredData = () => {
         const search = document.getElementById('searchInput').value.trim().toLowerCase();
         const cat = document.getElementById('filterCat').value;
-        const filtered = records.filter(r => (cat===""||r.cat===cat) && ((r.stu1||"")+(r.class1||"")+(r.stu2||"")+(r.class2||"")+(r.name||"")+(r.teacher||"")).toLowerCase().includes(search));
-        const ws = XLSX.utils.json_to_sheet(filtered.map(r => ({"日期":r.date,"比賽":r.name,"學生":[r.stu1,r.stu2].filter(Boolean).join(", "),"老師":r.teacher,"獎項":r.award})));
-        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Report"); XLSX.writeFile(wb, "Filtered_Report.xlsx");
+        const f = records.filter(r => (cat===""||r.cat===cat) && ((r.stu1||"")+(r.class1||"")+(r.stu2||"")+(r.class2||"")+(r.name||"")+(r.teacher||"")+(r.student||"")).toLowerCase().includes(search));
+        const ws = XLSX.utils.json_to_sheet(f.map(r => ({ "日期":r.date,"比賽":r.name,"學生":[r.stu1,r.stu2,r.stu3,r.stu4].filter(Boolean).join(", "),"老師":r.teacher,"獎項":r.award})));
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Report"); XLSX.writeFile(wb, "Search_Report.xlsx");
     };
+
+    // --- 權限驗證 ---
+    window.triggerLogin = (r) => { window.pendingRole = r; document.getElementById('loginPwd').value=''; loginModal.show(); setTimeout(() => document.getElementById('loginPwd').focus(), 500);};
+    window.confirmLogin = () => { if (btoa(document.getElementById('loginPwd').value) === PASS[window.pendingRole]) { currentRole = window.pendingRole; localStorage.setItem('lkfm_role', currentRole); loginModal.hide(); applyRoleUI(currentRole); } else alert("密碼錯誤"); };
+    function applyRoleUI(r) {
+        const d = document.getElementById('roleDisplay'); d.innerText = r === 'admin' ? '管理員' : (r === 'staff' ? '教職員' : '訪客模式');
+        d.className = `role-badge text-white ${r === 'admin' ? 'bg-danger' : (r === 'staff' ? 'bg-primary' : 'bg-secondary')}`;
+        document.querySelectorAll('.staff-only').forEach(el => el.style.display = r !== 'viewer' ? 'block' : 'none');
+        document.querySelectorAll('.admin-only').forEach(el => el.style.display = r === 'admin' ? 'block' : 'none');
+        refreshUI();
+    }
+    window.logout = () => { currentRole = 'viewer'; localStorage.setItem('lkfm_role', 'viewer'); applyRoleUI('viewer'); };
+    window.delRec = async (id) => { if(confirm("確定刪除？")) { await deleteDoc(doc(db, "competition_records", id)); await performBackup("DELETE_RECORD"); } };
+    window.clearDb = async () => { if(confirm("徹底清空雲端？")) { const s = await getDocs(colRef); const b = writeBatch(db); s.docs.forEach(d => b.delete(d.ref)); await b.commit(); await performBackup("FULL_CLEAR"); } };
+    window.checkOther = (s, d) => document.getElementById(d).classList.toggle('d-none', s.value !== '其他');
 </script>
 </body>
 </html>
