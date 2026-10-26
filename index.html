@@ -269,11 +269,12 @@
                         <div class="mb-3">
                             <label class="small fw-bold">獎項 *</label>
                             <select id="f_award" class="form-select form-select-sm" onchange="checkOther(this, 'f_other_div')">
-                                <option>冠軍</option><option>亞軍</option><option>季軍</option><option>殿軍</option><option>金獎</option><option>銀獎</option><option>銅獎</option><option>一等獎</option><option>二等獎</option><option>優良</option><option>優異獎</option><option value="其他">其他...</option>
+                                <option>冠軍</option><option>亞軍</option><option>季軍</option><option>殿軍</option><option>金獎</option><option>銀獎</option><option>銅獎</option><option>一等獎</option><option>二等獎</option><option>優良</option><option>優異獎</option><option value="其他">其他 (自行輸入具體獎項)...</option>
                             </select>
                         </div>
-                        <div id="f_other_div" class="d-none mb-3">
-                            <input type="text" id="f_other_val" class="form-control form-control-sm" placeholder="請註明獎項">
+                        <div id="f_other_div" class="d-none mb-3 p-2.5 bg-warning bg-opacity-10 border border-warning rounded-3">
+                            <label class="small fw-bold text-dark mb-1 d-block"><i class="bi bi-pencil-square me-1"></i>請在此輸入具體獎項名稱 *</label>
+                            <input type="text" id="f_other_val" class="form-control form-control-sm bg-white" placeholder="例如：十八區個人卓越表現獎、入圍獎">
                         </div>
                         <button type="submit" id="submitBtn" class="btn btn-primary w-100 fw-bold shadow-sm py-2">
                             <i class="bi bi-send-fill me-1"></i>提交數據並發信通知
@@ -553,6 +554,19 @@
         ].filter(Boolean);
 
         const awardVal = document.getElementById('f_award').value;
+        const otherVal = document.getElementById('f_other_val').value.trim();
+        const isOtherAward = (awardVal === '其他' || awardVal.startsWith('其他'));
+        
+        if (isOtherAward && !otherVal) {
+            alert('您選擇了「其他」，請在下方填寫具體獎項名稱！');
+            document.getElementById('f_other_val').focus();
+            btn.disabled = false;
+            btn.innerHTML = `<i class="bi bi-send-fill me-1"></i>提交數據並發信通知`;
+            return;
+        }
+
+        const finalAward = isOtherAward ? otherVal : awardVal;
+
         const entry = {
             date: parseExcelDate(document.getElementById('f_date').value),
             name: document.getElementById('f_name').value.trim(),
@@ -570,7 +584,7 @@
             class6: document.getElementById('f_class6').value.trim() || "",
             teacher: document.getElementById('f_teacher').value.trim(),
             cat: document.getElementById('f_cat').value,
-            award: (awardVal === '其他' ? document.getElementById('f_other_val').value.trim() : awardVal)
+            award: finalAward
         };
 
         try {
@@ -964,7 +978,26 @@
         XLSX.writeFile(wb, `LKFMS_獲獎統計報表_${new Date().toISOString().split('T')[0]}.xlsx`); 
     };
 
-    window.checkOther = (s, d) => document.getElementById(d).classList.toggle('d-none', s.value === '其他');
+    window.checkOther = (s, d) => {
+        const el = document.getElementById(d);
+        if (!el) return;
+        const isOther = (s.value === '其他' || s.value.startsWith('其他'));
+        if (isOther) {
+            el.classList.remove('d-none');
+            const inp = document.getElementById('f_other_val');
+            if (inp) {
+                inp.required = true;
+                setTimeout(() => inp.focus(), 60);
+            }
+        } else {
+            el.classList.add('d-none');
+            const inp = document.getElementById('f_other_val');
+            if (inp) {
+                inp.required = false;
+                inp.value = '';
+            }
+        }
+    };
     
     // 初始化身分
     applyRoleUI(currentRole);
