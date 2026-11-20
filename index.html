@@ -4,12 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>盧光煇紀念學校學生的公開成績輸入系統</title>
-    <!-- 資源引入 -->
+    <!-- 預連線加速雲端與 CDN -->
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <!-- 資源引入 (非核心套件採延遲/按需載入以加快開啟速度) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+    <script defer type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 
     <style>
         :root {
@@ -548,7 +551,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, updateDoc, doc, writeBatch, getDocs, serverTimestamp, limit }
+    import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, updateDoc, doc, writeBatch, getDocs, serverTimestamp, limit }
     from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -568,17 +571,65 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    let db;
+    try {
+        db = initializeFirestore(app, {
+            localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+            experimentalAutoDetectLongPolling: true
+        });
+    } catch (e) {
+        db = getFirestore(app);
+    }
     const colRef = collection(db, "competition_records");
     const backupRef = collection(db, "system_backups");
     const fbRef = collection(db, "system_feedback");
 
-    emailjs.init(EMAILJS_CONFIG.PUBLIC_KEY);
+    let emailjsInited = false;
+    function safeSendEmail(params) {
+        if (!window.emailjs) return Promise.resolve();
+        if (!emailjsInited) {
+            try { window.emailjs.init(EMAILJS_CONFIG.PUBLIC_KEY); emailjsInited = true; } catch(e) {}
+        }
+        return window.emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.TEMPLATE_ID, params);
+    }
 
-    let records = [];
+    // 按需載入 XLSX，避免阻塞首頁開啟
+    let xlsxPromise = null;
+    function ensureXLSX() {
+        if (window.XLSX) return Promise.resolve(window.XLSX);
+        if (!xlsxPromise) {
+            xlsxPromise = new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+                s.onload = () => resolve(window.XLSX);
+                s.onerror = () => reject(new Error('Excel 套件載入失敗，請檢查網路'));
+                document.head.appendChild(s);
+            });
+        }
+        return xlsxPromise;
+    }
+
+    const CACHE_KEY = 'lkfms_records_cache_v1';
+    function readCache() {
+        try {
+            const raw = localStorage.getItem(CACHE_KEY);
+            const arr = raw ? JSON.parse(raw) : [];
+            return Array.isArray(arr) ? arr : [];
+        } catch(e) { return []; }
+    }
+    function writeCache(list) {
+        try {
+            const compact = list.map(({ createdAt, ...rest }) => rest);
+            localStorage.setItem(CACHE_KEY, JSON.stringify(compact));
+        } catch(e) {}
+    }
+
+    let records = readCache();
+    let isLoadingRecords = records.length === 0;
     let currentRole = localStorage.getItem('lkfm_role') || 'viewer';
     let currentTargetRole = 'staff';
     let selectedAward = '';
+    let unsubFeedback = null;
 
     const PASS = {
         staff: "c3RhZmY4ODg=", // staff888
@@ -658,14 +709,16 @@
         }
     }
 
-    // 監聽雲端紀錄
-    onSnapshot(colRef, (s) => {
-        records = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    function applyRecordsDocs(docs) {
+        records = docs.map(d => ({ id: d.id, ...d.data() }));
         records.sort((a, b) => {
             const da = parseExcelDate(a.date);
             const dbDate = parseExcelDate(b.date);
             return dbDate.localeCompare(da);
         });
+        isLoadingRecords = false;
+        writeCache(records);
+
         const serialCount = records.filter(r => isSerialDateVal(r.date)).length;
         const repairBox = document.getElementById('repairDatesBox');
         if (serialCount > 0) {
@@ -675,16 +728,41 @@
             repairBox.classList.add('d-none');
         }
         refreshUI();
+    }
+
+    // 首次無快取時先以單次查詢快速拉取，同時保持即時監聽
+    let snapshotArrived = false;
+    if (isLoadingRecords) {
+        getDocs(colRef).then((s) => {
+            if (!snapshotArrived) applyRecordsDocs(s.docs);
+        }).catch(() => {});
+    }
+
+    // 監聽雲端紀錄
+    onSnapshot(colRef, (s) => {
+        snapshotArrived = true;
+        applyRecordsDocs(s.docs);
+    }, () => {
+        isLoadingRecords = false;
+        refreshUI();
     });
 
-    // 監聽意見紀錄
-    onSnapshot(query(fbRef, orderBy("timestamp", "desc"), limit(50)), (s) => {
-        document.getElementById('feedbackList').innerHTML = s.docs.map(d => {
-            const data = d.data();
-            const time = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString() : '剛才';
-            return `<div class="list-group-item"><div class="d-flex w-100 justify-content-between"><h6 class="mb-1 fw-bold text-primary">意見回饋</h6><small class="text-muted">${time}</small></div><p class="mb-1 small">${data.content}</p></div>`;
-        }).join('');
-    });
+    // 僅管理員才監聽意見紀錄，減少一般訪客載入負擔
+    function syncFeedbackSubscription() {
+        if (currentRole === 'admin') {
+            if (unsubFeedback) return;
+            unsubFeedback = onSnapshot(query(fbRef, orderBy("timestamp", "desc"), limit(50)), (s) => {
+                document.getElementById('feedbackList').innerHTML = s.docs.map(d => {
+                    const data = d.data();
+                    const time = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString() : '剛才';
+                    return `<div class="list-group-item"><div class="d-flex w-100 justify-content-between"><h6 class="mb-1 fw-bold text-primary">意見回饋</h6><small class="text-muted">${time}</small></div><p class="mb-1 small">${data.content}</p></div>`;
+                }).join('');
+            });
+        } else if (unsubFeedback) {
+            unsubFeedback();
+            unsubFeedback = null;
+        }
+    }
 
     async function doBackup(type, extraList = null) {
         try {
@@ -789,7 +867,7 @@
 
             showFormMsg('success', '✅ 成功！數據已存入雲端。');
 
-            emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.TEMPLATE_ID, {
+            safeSendEmail({
                 to_email: "lmw@lkfms.edu.hk",
                 student_name: names.join(", "),
                 comp_name: entry.name,
@@ -851,24 +929,33 @@
 
         document.getElementById('exportFilterBtn').classList.toggle('d-none', (search==="" && cat==="" && selectedAward==="") || f.length === 0);
 
-        tbody.innerHTML = f.map(r => {
-            const formattedDate = parseExcelDate(r.date) || r.date;
-            const formattedInputDate = r.inputDate ? parseExcelDate(r.inputDate) : '';
-            return `<tr>
-                <td class="small font-monospace fw-semibold">
-                    <div>${formattedDate}</div>
-                    ${formattedInputDate ? `<div class="text-success" style="font-size:0.7rem;">輸入：${formattedInputDate}</div>` : ''}
-                </td>
-                <td><b>${r.name || ''}</b><br><small class="badge bg-light text-dark border">${r.cat||'學術'}</small></td>
-                <td><div class="d-flex flex-wrap">${formatStudents(r)}</div></td>
-                <td class="small text-secondary">${r.teacher||'---'}</td>
-                <td class="text-primary fw-bold">${r.award || ''}</td>
-                <td class="staff-only text-end text-nowrap">
-                    <button class="btn btn-sm text-primary" title="編輯" onclick="window.openEditRec('${r.id}')"><i class="bi bi-pencil-square"></i></button>
-                    <button class="btn btn-sm text-danger" title="刪除" onclick="window.delRec('${r.id}')"><i class="bi bi-trash-fill"></i></button>
-                </td>
-            </tr>`;
-        }).join('');
+        if (isLoadingRecords && records.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-secondary">
+                <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                正在從雲端載入獲獎紀錄...
+            </td></tr>`;
+        } else if (f.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted small">查無符合的獲獎紀錄</td></tr>`;
+        } else {
+            tbody.innerHTML = f.map(r => {
+                const formattedDate = parseExcelDate(r.date) || r.date;
+                const formattedInputDate = r.inputDate ? parseExcelDate(r.inputDate) : '';
+                return `<tr>
+                    <td class="small font-monospace fw-semibold">
+                        <div>${formattedDate}</div>
+                        ${formattedInputDate ? `<div class="text-success" style="font-size:0.7rem;">輸入：${formattedInputDate}</div>` : ''}
+                    </td>
+                    <td><b>${r.name || ''}</b><br><small class="badge bg-light text-dark border">${r.cat||'學術'}</small></td>
+                    <td><div class="d-flex flex-wrap">${formatStudents(r)}</div></td>
+                    <td class="small text-secondary">${r.teacher||'---'}</td>
+                    <td class="text-primary fw-bold">${r.award || ''}</td>
+                    <td class="staff-only text-end text-nowrap">
+                        <button class="btn btn-sm text-primary" title="編輯" onclick="window.openEditRec('${r.id}')"><i class="bi bi-pencil-square"></i></button>
+                        <button class="btn btn-sm text-danger" title="刪除" onclick="window.delRec('${r.id}')"><i class="bi bi-trash-fill"></i></button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
 
         renderStats(f);
     };
@@ -995,7 +1082,7 @@
         if (!t) return;
         try {
             await addDoc(fbRef, { content: t, timestamp: serverTimestamp() });
-            emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.TEMPLATE_ID, {
+            safeSendEmail({
                 to_email: "lmw@lkfms.edu.hk",
                 student_name: "留言板",
                 comp_name: "系統建議",
@@ -1052,6 +1139,7 @@
         const d = document.getElementById('roleDisplay');
         d.innerText = r === 'admin' ? '管理員 (Admin)' : (r === 'staff' ? '教職員 (Staff)' : '訪客模式');
         d.className = `role-badge text-white ${r === 'admin' ? 'bg-danger' : (r === 'staff' ? 'bg-primary' : 'bg-secondary')}`;
+        syncFeedbackSubscription();
     }
 
     window.logout = () => {
@@ -1094,32 +1182,35 @@
     };
 
     // --- 下載最新樣本 (支援 6 位學生) ---
-    window.downloadTemplate = () => {
-        const ws = XLSX.utils.json_to_sheet([
-            {
-                "日期":"2026-10-19",
-                "輸入日期":getLocalToday(),
-                "比賽名稱":"2026香港活力鼓令24式擂台賽-中國鼓樂組（小學組）",
-                "類別":"音樂",
-                "獎項":"冠軍",
-                "負責老師":"周老師",
-                "姓名1":"李誠熙",
-                "班別1":"6A",
-                "姓名2":"陳以諾",
-                "班別2":"6A",
-                "姓名3":"陳以琳",
-                "班別3":"6B",
-                "姓名4":"章嘉恆",
-                "班別4":"5A",
-                "姓名5":"賴曉瑜",
-                "班別5":"5B",
-                "姓名6":"梁灝程",
-                "班別6":"4C"
-            }
-        ]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-        XLSX.writeFile(wb, "盧光煇紀念學校_獲獎紀錄匯入樣本_支援6名學生.xlsx");
+    window.downloadTemplate = async () => {
+        try {
+            const XLSX = await ensureXLSX();
+            const ws = XLSX.utils.json_to_sheet([
+                {
+                    "日期":"2026-10-19",
+                    "輸入日期":getLocalToday(),
+                    "比賽名稱":"2026香港活力鼓令24式擂台賽-中國鼓樂組（小學組）",
+                    "類別":"音樂",
+                    "獎項":"冠軍",
+                    "負責老師":"周老師",
+                    "姓名1":"李誠熙",
+                    "班別1":"6A",
+                    "姓名2":"陳以諾",
+                    "班別2":"6A",
+                    "姓名3":"陳以琳",
+                    "班別3":"6B",
+                    "姓名4":"章嘉恆",
+                    "班別4":"5A",
+                    "姓名5":"賴曉瑜",
+                    "班別5":"5B",
+                    "姓名6":"梁灝程",
+                    "班別6":"4C"
+                }
+            ]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+            XLSX.writeFile(wb, "盧光煇紀念學校_獲獎紀錄匯入樣本_支援6名學生.xlsx");
+        } catch(e) { alert(e.message); }
     };
 
     // --- 批量 Excel 匯入：使用 cellDates: false 避免時區偏移，支援逗號分隔 ---
@@ -1129,6 +1220,7 @@
         const r = new FileReader();
         r.onload = async (e) => {
             try {
+                const XLSX = await ensureXLSX();
                 const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: false });
                 const sheet = wb.Sheets[wb.SheetNames[0]];
                 const rawRows = XLSX.utils.sheet_to_json(sheet, { raw: false, defval: '' });
@@ -1208,71 +1300,77 @@
         r.readAsArrayBuffer(file);
     };
 
-    window.exportData = () => {
-        const exported = records.map(r => ({
-            "比賽日期": parseExcelDate(r.date),
-            "輸入日期": r.inputDate ? parseExcelDate(r.inputDate) : "",
-            "比賽名稱": r.name || "",
-            "類別": r.cat || "",
-            "獎項": r.award || "",
-            "負責老師": r.teacher || "",
-            "姓名1": r.stu1 || r.student || "",
-            "班別1": r.class1 || r.class || "",
-            "姓名2": r.stu2 || "",
-            "班別2": r.class2 || "",
-            "姓名3": r.stu3 || "",
-            "班別3": r.class3 || "",
-            "姓名4": r.stu4 || "",
-            "班別4": r.class4 || "",
-            "姓名5": r.stu5 || "",
-            "班別5": r.class5 || "",
-            "姓名6": r.stu6 || "",
-            "班別6": r.class6 || ""
-        }));
-        const ws = XLSX.utils.json_to_sheet(exported);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Backup");
-        XLSX.writeFile(wb, `盧光煇紀念學校_全校獲獎全表備份_${getLocalToday()}.xlsx`);
+    window.exportData = async () => {
+        try {
+            const XLSX = await ensureXLSX();
+            const exported = records.map(r => ({
+                "比賽日期": parseExcelDate(r.date),
+                "輸入日期": r.inputDate ? parseExcelDate(r.inputDate) : "",
+                "比賽名稱": r.name || "",
+                "類別": r.cat || "",
+                "獎項": r.award || "",
+                "負責老師": r.teacher || "",
+                "姓名1": r.stu1 || r.student || "",
+                "班別1": r.class1 || r.class || "",
+                "姓名2": r.stu2 || "",
+                "班別2": r.class2 || "",
+                "姓名3": r.stu3 || "",
+                "班別3": r.class3 || "",
+                "姓名4": r.stu4 || "",
+                "班別4": r.class4 || "",
+                "姓名5": r.stu5 || "",
+                "班別5": r.class5 || "",
+                "姓名6": r.stu6 || "",
+                "班別6": r.class6 || ""
+            }));
+            const ws = XLSX.utils.json_to_sheet(exported);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Backup");
+            XLSX.writeFile(wb, `盧光煇紀念學校_全校獲獎全表備份_${getLocalToday()}.xlsx`);
+        } catch(e) { alert(e.message); }
     };
 
-    window.exportFilteredData = () => {
-        const s = document.getElementById('searchInput').value.trim().toLowerCase();
-        const c = document.getElementById('filterCat').value;
-        const f = records.filter(r => {
-            if (c !== "" && r.cat !== c) return false;
-            if (selectedAward !== "") {
-                if (selectedAward === "其他") {
-                    if (awardOptions.includes(r.award)) return false;
-                } else if (r.award !== selectedAward) {
-                    return false;
+    window.exportFilteredData = async () => {
+        try {
+            const XLSX = await ensureXLSX();
+            const s = document.getElementById('searchInput').value.trim().toLowerCase();
+            const c = document.getElementById('filterCat').value;
+            const f = records.filter(r => {
+                if (c !== "" && r.cat !== c) return false;
+                if (selectedAward !== "") {
+                    if (selectedAward === "其他") {
+                        if (awardOptions.includes(r.award)) return false;
+                    } else if (r.award !== selectedAward) {
+                        return false;
+                    }
                 }
-            }
-            if (s !== "") {
-                const combined = (
-                    (r.stu1||"")+(r.class1||"")+(r.stu2||"")+(r.class2||"")+
-                    (r.stu3||"")+(r.class3||"")+(r.stu4||"")+(r.class4||"")+
-                    (r.stu5||"")+(r.class5||"")+(r.stu6||"")+(r.class6||"")+
-                    (r.student||"")+(r.class||"")+(r.name||"")+(r.teacher||"")+(r.award||"")+
-                    parseExcelDate(r.date)+(r.inputDate ? parseExcelDate(r.inputDate) : "")
-                ).toLowerCase();
-                if (!combined.includes(s)) return false;
-            }
-            return true;
-        });
+                if (s !== "") {
+                    const combined = (
+                        (r.stu1||"")+(r.class1||"")+(r.stu2||"")+(r.class2||"")+
+                        (r.stu3||"")+(r.class3||"")+(r.stu4||"")+(r.class4||"")+
+                        (r.stu5||"")+(r.class5||"")+(r.stu6||"")+(r.class6||"")+
+                        (r.student||"")+(r.class||"")+(r.name||"")+(r.teacher||"")+(r.award||"")+
+                        parseExcelDate(r.date)+(r.inputDate ? parseExcelDate(r.inputDate) : "")
+                    ).toLowerCase();
+                    if (!combined.includes(s)) return false;
+                }
+                return true;
+            });
 
-        const exported = f.map(r => ({
-            "比賽日期": parseExcelDate(r.date),
-            "輸入日期": r.inputDate ? parseExcelDate(r.inputDate) : "",
-            "比賽名稱": r.name || "",
-            "類別": r.cat || "",
-            "獎項": r.award || "",
-            "負責老師": r.teacher || "",
-            "獲獎學生名單": [r.stu1, r.stu2, r.stu3, r.stu4, r.stu5, r.stu6].filter(Boolean).join(", ")
-        }));
-        const ws = XLSX.utils.json_to_sheet(exported);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Result");
-        XLSX.writeFile(wb, `盧光煇紀念學校_獲獎統計報表_${getLocalToday()}.xlsx`);
+            const exported = f.map(r => ({
+                "比賽日期": parseExcelDate(r.date),
+                "輸入日期": r.inputDate ? parseExcelDate(r.inputDate) : "",
+                "比賽名稱": r.name || "",
+                "類別": r.cat || "",
+                "獎項": r.award || "",
+                "負責老師": r.teacher || "",
+                "獲獎學生名單": [r.stu1, r.stu2, r.stu3, r.stu4, r.stu5, r.stu6].filter(Boolean).join(", ")
+            }));
+            const ws = XLSX.utils.json_to_sheet(exported);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Result");
+            XLSX.writeFile(wb, `盧光煇紀念學校_獲獎統計報表_${getLocalToday()}.xlsx`);
+        } catch(e) { alert(e.message); }
     };
 
     window.checkOther = (s, d, inputId = 'f_other_val') => {
@@ -1296,6 +1394,7 @@
     };
 
     applyRoleUI(currentRole);
+    refreshUI();
 </script>
 </body>
 </html>
