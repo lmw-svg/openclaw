@@ -286,7 +286,7 @@
                         <div class="mb-2">
                             <label class="small fw-bold">獎項 *</label>
                             <select id="f_award" class="form-select form-select-sm" onchange="checkOther(this, 'f_other_div', 'f_other_val')">
-                                <option>冠軍</option><option>亞軍</option><option>季軍</option><option>殿軍</option><option>金獎</option><option>銀獎</option><option>銅獎</option><option>一等獎</option><option>二等獎</option><option>優良</option><option>優異獎</option><option value="其他">其他 (自行輸入具體獎項)...</option>
+                                <option>冠軍</option><option>亞軍</option><option>季軍</option><option>殿軍</option><option>金獎</option><option>銀獎</option><option>銅獎</option><option>一等獎</option><option>二等獎</option><option>優良</option><option>良好獎</option><option>優異獎</option><option value="其他">其他 (自行輸入具體獎項)...</option>
                             </select>
                         </div>
                         <div id="f_other_div" class="d-none mb-2 p-2.5 bg-warning bg-opacity-10 border border-warning rounded-3">
@@ -318,14 +318,26 @@
                 </div>
                 <div class="card-body">
                     <button class="btn btn-outline-success btn-sm w-100 mb-2 fw-bold" onclick="downloadTemplate()">
-                        <i class="bi bi-download me-1"></i>下載匯入樣本 (支援6位學生)
+                        <i class="bi bi-download me-1"></i>下載 XLS 匯入樣本 (免填6人欄位)
                     </button>
                     <button class="btn btn-success btn-sm w-100 mb-2 fw-bold" onclick="document.getElementById('importFile').click()">
-                        <i class="bi bi-upload me-1"></i>批量 Excel 匯入 (自動校正日期)
+                        <i class="bi bi-upload me-1"></i>批量匯入 XLS / XLSX (免6人欄位)
                     </button>
                     <input type="file" id="importFile" class="d-none" accept=".xlsx, .xls, .csv" onchange="handleExcelImport(this)">
-                    <button class="btn btn-dark btn-sm w-100 mb-2 fw-bold" onclick="exportData()">
-                        <i class="bi bi-database-down me-1"></i>導出雲端全表備份 (完整6人欄位)
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <button class="btn btn-primary btn-sm w-100 fw-bold" onclick="createManualBackup()">
+                                <i class="bi bi-cloud-arrow-up me-1"></i>立即雲端備份
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-dark btn-sm w-100 fw-bold" onclick="openBackupCenter()">
+                                <i class="bi bi-clock-history me-1"></i>備份與還原
+                            </button>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-dark btn-sm w-100 mb-2 fw-bold" onclick="exportData()">
+                        <i class="bi bi-database-down me-1"></i>導出全表 Excel 備份
                     </button>
 
                     <!-- 偵測到舊序號日期時的修復區 -->
@@ -475,7 +487,7 @@
                     <div class="mb-2">
                         <label class="small fw-bold">獎項 *</label>
                         <select id="e_award" class="form-select form-select-sm" onchange="checkOther(this, 'e_other_div', 'e_other_val')">
-                            <option>冠軍</option><option>亞軍</option><option>季軍</option><option>殿軍</option><option>金獎</option><option>銀獎</option><option>銅獎</option><option>一等獎</option><option>二等獎</option><option>優良</option><option>優異獎</option><option value="其他">其他 (自行輸入具體獎項)...</option>
+                            <option>冠軍</option><option>亞軍</option><option>季軍</option><option>殿軍</option><option>金獎</option><option>銀獎</option><option>銅獎</option><option>一等獎</option><option>二等獎</option><option>優良</option><option>良好獎</option><option>優異獎</option><option value="其他">其他 (自行輸入具體獎項)...</option>
                         </select>
                     </div>
                     <div id="e_other_div" class="d-none mb-2 p-2 bg-warning bg-opacity-10 border border-warning rounded-3">
@@ -502,6 +514,51 @@
             </div>
             <div class="modal-body p-0">
                 <div id="feedbackList" class="list-group list-group-flush"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 雲端備份與還原中心 -->
+<div class="modal fade" id="backupModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white py-2.5">
+                <h6 class="modal-title fw-bold"><i class="bi bi-database-fill-gear text-info me-2"></i>雲端備份與還原中心</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="row g-2 mb-3">
+                    <div class="col-6 col-md-3">
+                        <button class="btn btn-primary btn-sm w-100 fw-bold" onclick="createManualBackup(true)">
+                            <i class="bi bi-cloud-upload me-1"></i>立即雲端備份
+                        </button>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <button class="btn btn-success btn-sm w-100 fw-bold" onclick="exportData()">
+                            <i class="bi bi-file-earmark-excel me-1"></i>下載 Excel
+                        </button>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <button class="btn btn-dark btn-sm w-100 fw-bold" onclick="exportJsonBackup()">
+                            <i class="bi bi-filetype-json me-1"></i>下載 JSON
+                        </button>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <button class="btn btn-outline-primary btn-sm w-100 fw-bold" onclick="document.getElementById('jsonRestoreFile').click()">
+                            <i class="bi bi-upload me-1"></i>匯入 JSON 還原
+                        </button>
+                        <input type="file" id="jsonRestoreFile" class="d-none" accept=".json,application/json" onchange="handleJsonRestore(this)">
+                    </div>
+                </div>
+                <div id="backupModalMsg" class="d-none alert py-2 px-3 small mb-2"></div>
+                <div class="border rounded-3 overflow-hidden">
+                    <div class="px-3 py-2 bg-light border-bottom d-flex justify-content-between align-items-center">
+                        <span class="small fw-bold text-secondary"><i class="bi bi-clock-history me-1"></i>雲端歷史快照 (最新 20 筆)</span>
+                        <button class="btn btn-link btn-sm p-0 text-decoration-none" onclick="loadBackupHistory()">重新整理</button>
+                    </div>
+                    <div id="backupList" class="list-group list-group-flush" style="max-height: 320px; overflow-y: auto;"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -636,9 +693,10 @@
         admin: "YWRtaW45OTk="  // admin999
     };
 
-    const awardOptions = ["冠軍", "亞軍", "季軍", "殿軍", "金獎", "銀獎", "銅獎", "一等獎", "二等獎", "優良", "優異獎"];
+    const awardOptions = ["冠軍", "亞軍", "季軍", "殿軍", "金獎", "銀獎", "銅獎", "一等獎", "二等獎", "優良", "良好獎", "優異獎"];
     const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
     const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+    const backupModal = new bootstrap.Modal(document.getElementById('backupModal'));
 
     function getLocalToday() {
         const now = new Date();
@@ -1181,39 +1239,218 @@
         }
     };
 
-    // --- 下載最新樣本 (支援 6 位學生) ---
+    // --- 雲端與本機 JSON 備份/還原功能 ---
+    let backupSnapshotsCache = [];
+
+    function showBackupMsg(type, msg) {
+        const el = document.getElementById('backupModalMsg');
+        if (!el) return;
+        el.className = `alert alert-${type} py-2 px-3 small mb-2`;
+        el.innerText = msg;
+        el.classList.remove('d-none');
+    }
+
+    window.createManualBackup = async (fromModal = false) => {
+        try {
+            const clean = records.map(({ createdAt, ...rest }) => rest);
+            await addDoc(backupRef, { timestamp: serverTimestamp(), action: "MANUAL", data: JSON.stringify(clean) });
+            document.getElementById('backupStatus').innerText = `☁️ 已手動備份 (${clean.length} 筆)`;
+            setTimeout(() => document.getElementById('backupStatus').innerText = "", 3500);
+            if (fromModal) {
+                showBackupMsg('success', `✅ 已建立雲端快照備份（共 ${clean.length} 筆）`);
+                loadBackupHistory();
+            } else {
+                alert(`✅ 已成功建立雲端備份（共 ${clean.length} 筆獲獎紀錄）！`);
+            }
+        } catch (e) {
+            if (fromModal) showBackupMsg('danger', '備份失敗：' + e.message);
+            else alert('備份失敗：' + e.message);
+        }
+    };
+
+    window.exportJsonBackup = (customList = null, suffix = '') => {
+        const list = customList || records;
+        const payload = {
+            school: "盧光煇紀念學校 (LKFMS)",
+            exportedAt: new Date().toISOString(),
+            count: list.length,
+            records: list.map(({ createdAt, ...rest }) => rest)
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `盧光煇紀念學校_系統備份_${suffix ? suffix + '_' : ''}${getLocalToday()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    window.openBackupCenter = () => {
+        const el = document.getElementById('backupModalMsg');
+        if (el) el.classList.add('d-none');
+        backupModal.show();
+        loadBackupHistory();
+    };
+
+    window.loadBackupHistory = async () => {
+        const listEl = document.getElementById('backupList');
+        listEl.innerHTML = `<div class="p-4 text-center small text-muted">載入雲端備份中...</div>`;
+        try {
+            const snap = await getDocs(query(backupRef, orderBy("timestamp", "desc"), limit(20)));
+            const labels = {
+                MANUAL: "手動雲端備份", ADD: "新增備份", EDIT: "編輯備份",
+                DEL: "刪除備份", DELETE: "刪除備份", IMPORT: "匯入備份",
+                FIX_DATES: "日期修復備份", PRE_RESTORE: "還原前備份",
+                CLEAR: "清空前備份", CLEAR_DATABASE: "清空前備份"
+            };
+            backupSnapshotsCache = snap.docs.map(d => {
+                const raw = d.data();
+                let arr = [];
+                try { arr = JSON.parse(raw.data || "[]"); } catch(e) {}
+                return {
+                    id: d.id,
+                    action: raw.action || "MANUAL",
+                    label: labels[raw.action] || raw.action || "備份",
+                    time: raw.timestamp ? new Date(raw.timestamp.seconds * 1000).toLocaleString('zh-HK') : "剛才",
+                    records: Array.isArray(arr) ? arr : []
+                };
+            });
+            if (!backupSnapshotsCache.length) {
+                listEl.innerHTML = `<div class="p-4 text-center small text-muted">尚無雲端歷史備份</div>`;
+                return;
+            }
+            listEl.innerHTML = backupSnapshotsCache.map((b, idx) => `
+                <div class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1">${b.label}</span>
+                        <strong class="small">${b.records.length} 筆紀錄</strong>
+                        <div class="text-muted" style="font-size: 0.72rem;">${b.time}</div>
+                    </div>
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:0.75rem;" onclick="downloadSnapshotJson(${idx})">JSON</button>
+                        <button class="btn btn-outline-primary btn-sm py-0 px-2 fw-bold" style="font-size:0.75rem;" onclick="restoreBackupIndex(${idx})">還原</button>
+                    </div>
+                </div>
+            `).join('');
+        } catch (err) {
+            listEl.innerHTML = `<div class="p-4 text-center small text-danger">讀取失敗：${err.message}</div>`;
+        }
+    };
+
+    window.downloadSnapshotJson = (idx) => {
+        const b = backupSnapshotsCache[idx];
+        if (b) exportJsonBackup(b.records, b.action);
+    };
+
+    async function restoreRecordsList(items, overwrite) {
+        await doBackup("PRE_RESTORE");
+        if (overwrite) {
+            const snap = await getDocs(colRef);
+            for (let i = 0; i < snap.docs.length; i += 450) {
+                const chunk = snap.docs.slice(i, i + 450);
+                const delB = writeBatch(db);
+                chunk.forEach(d => delB.delete(d.ref));
+                await delB.commit();
+            }
+        }
+        const cleanItems = items.map(r => ({
+            date: parseExcelDate(r.date) || r.date || "",
+            inputDate: r.inputDate ? (parseExcelDate(r.inputDate) || r.inputDate) : "",
+            name: (r.name || "").trim(),
+            cat: (r.cat || "學術").trim(),
+            award: (r.award || "獲獎").trim(),
+            teacher: (r.teacher || "").trim(),
+            stu1: (r.stu1 || r.student || "").trim(),
+            class1: (r.class1 || r.class || "").trim(),
+            stu2: (r.stu2 || "").trim(), class2: (r.class2 || "").trim(),
+            stu3: (r.stu3 || "").trim(), class3: (r.class3 || "").trim(),
+            stu4: (r.stu4 || "").trim(), class4: (r.class4 || "").trim(),
+            stu5: (r.stu5 || "").trim(), class5: (r.class5 || "").trim(),
+            stu6: (r.stu6 || "").trim(), class6: (r.class6 || "").trim()
+        }));
+        for (let i = 0; i < cleanItems.length; i += 450) {
+            const chunk = cleanItems.slice(i, i + 450);
+            const b = writeBatch(db);
+            chunk.forEach(item => b.set(doc(colRef), item));
+            await b.commit();
+        }
+        showBackupMsg('success', `✅ 還原完成！已還原 ${cleanItems.length} 筆資料（已先自動備份原資料）。`);
+        loadBackupHistory();
+    }
+
+    window.restoreBackupIndex = async (idx) => {
+        const b = backupSnapshotsCache[idx];
+        if (!b || !b.records.length) return;
+        const overwrite = currentRole === 'admin' && confirm(`確定將目前雲端資料「覆蓋還原」為此備份（${b.records.length} 筆）？\n（還原前會自動備份目前資料；按「取消」可選擇取消操作）`);
+        if (currentRole === 'admin' && !overwrite) return;
+        if (currentRole !== 'admin' && !confirm(`確定將此備份（${b.records.length} 筆）合併匯入資料庫？`)) return;
+        try {
+            await restoreRecordsList(b.records, currentRole === 'admin');
+        } catch (err) {
+            showBackupMsg('danger', '還原失敗：' + err.message);
+        }
+    };
+
+    window.handleJsonRestore = (input) => {
+        const file = input.files[0];
+        if (!file) return;
+        const r = new FileReader();
+        r.onload = async (e) => {
+            try {
+                const parsed = JSON.parse(e.target.result);
+                const list = Array.isArray(parsed) ? parsed : parsed?.records;
+                if (!Array.isArray(list) || !list.length) {
+                    showBackupMsg('danger', 'JSON 檔案內無有效備份紀錄');
+                    return;
+                }
+                const overwrite = currentRole === 'admin' && confirm(`檔案內共有 ${list.length} 筆資料。\n按「確定」將覆蓋目前資料庫；按「取消」改為合併匯入（保留現有資料）？`);
+                if (!overwrite && !confirm(`確認將檔案內 ${list.length} 筆資料「合併匯入」至目前資料庫？`)) return;
+                await restoreRecordsList(list, overwrite);
+            } catch (err) {
+                showBackupMsg('danger', 'JSON 解析或還原失敗：' + err.message);
+            } finally {
+                input.value = '';
+            }
+        };
+        r.readAsText(file);
+    };
+
+    // --- 下載簡化 XLS/XLSX 匯入樣本 (不用6人欄位) ---
     window.downloadTemplate = async () => {
         try {
             const XLSX = await ensureXLSX();
+            const today = getLocalToday();
             const ws = XLSX.utils.json_to_sheet([
                 {
-                    "日期":"2026-10-19",
-                    "輸入日期":getLocalToday(),
+                    "比賽日期":"2026-10-19",
+                    "輸入日期":today,
+                    "比賽名稱":"全港小學校際數學奧林匹克邀請賽",
+                    "類別":"數學",
+                    "獎項":"良好獎",
+                    "負責老師":"王志明老師",
+                    "學生姓名":"陳大文",
+                    "班別":"6A"
+                },
+                {
+                    "比賽日期":"2026-10-19",
+                    "輸入日期":today,
                     "比賽名稱":"2026香港活力鼓令24式擂台賽-中國鼓樂組（小學組）",
                     "類別":"音樂",
                     "獎項":"冠軍",
                     "負責老師":"周老師",
-                    "姓名1":"李誠熙",
-                    "班別1":"6A",
-                    "姓名2":"陳以諾",
-                    "班別2":"6A",
-                    "姓名3":"陳以琳",
-                    "班別3":"6B",
-                    "姓名4":"章嘉恆",
-                    "班別4":"5A",
-                    "姓名5":"賴曉瑜",
-                    "班別5":"5B",
-                    "姓名6":"梁灝程",
-                    "班別6":"4C"
+                    "學生姓名":"李誠熙、張小敏、何家俊",
+                    "班別":"6A、6A、6B"
                 }
             ]);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-            XLSX.writeFile(wb, "盧光煇紀念學校_獲獎紀錄匯入樣本_支援6名學生.xlsx");
+            XLSX.writeFile(wb, "盧光煇紀念學校_獲獎紀錄匯入樣本.xlsx");
         } catch(e) { alert(e.message); }
     };
 
-    // --- 批量 Excel 匯入：使用 cellDates: false 避免時區偏移，支援逗號分隔 ---
+    // --- 批量 XLS/XLSX 匯入：支援單欄學生/班別 (免6人欄位) 及自動校正日期 ---
     window.handleExcelImport = (input) => {
         const file = input.files[0];
         if (!file) return;
@@ -1226,23 +1463,24 @@
                 const rawRows = XLSX.utils.sheet_to_json(sheet, { raw: false, defval: '' });
                 const rawVals = XLSX.utils.sheet_to_json(sheet, { raw: true, defval: '' });
 
+                const sepRegex = /[\s]*[,，、;；/\r\n]+[\s]*/;
                 const entries = [];
                 rawRows.forEach((row, idx) => {
                     const rv = rawVals[idx] || {};
                     const c = {};
                     const rc = {};
-                    Object.keys(row).forEach(k => c[k.toString().trim().replace(/[\s\-_（）()]/g, '')] = row[k]);
-                    Object.keys(rv).forEach(k => rc[k.toString().trim().replace(/[\s\-_（）()]/g, '')] = rv[k]);
+                    Object.keys(row).forEach(k => c[k.toString().trim().replace(/[\s\-_（）()]/g, '').toLowerCase()] = row[k]);
+                    Object.keys(rv).forEach(k => rc[k.toString().trim().replace(/[\s\-_（）()]/g, '').toLowerCase()] = rv[k]);
 
-                    const rawDate = rc["日期"] ?? rc["比賽日期"] ?? rc["活動日期"] ?? c["日期"] ?? c["比賽日期"] ?? "";
+                    const rawDate = rc["比賽日期"] ?? rc["日期"] ?? rc["活動日期"] ?? rc["date"] ?? c["比賽日期"] ?? c["日期"] ?? "";
                     const validDate = parseExcelDate(rawDate);
                     const rawInputDate = rc["輸入日期"] ?? rc["填報日期"] ?? rc["inputdate"] ?? c["輸入日期"] ?? c["填報日期"] ?? "";
                     const validInputDate = parseExcelDate(rawInputDate) || getLocalToday();
-                    const name = String(c["比賽名稱"] || c["活動名稱"] || c["比賽"] || "").trim();
+                    const name = String(c["比賽名稱"] || c["活動名稱"] || c["比賽"] || c["name"] || "").trim();
                     if (!name && !validDate) return;
 
-                    let stu1 = String(c["姓名1"] || c["學生1"] || c["姓名"] || c["學生"] || "").trim();
-                    let class1 = String(c["班別1"] || c["班級1"] || c["班別"] || c["班級"] || "").trim();
+                    let stu1 = String(c["學生姓名"] || c["姓名"] || c["學生"] || c["獲獎學生"] || c["獲獎學生名單"] || c["姓名1"] || c["學生1"] || c["stu1"] || "").trim();
+                    let class1 = String(c["班別"] || c["班級"] || c["班別1"] || c["班級1"] || c["class1"] || "").trim();
                     let stu2 = String(c["姓名2"] || c["學生2"] || c["stu2"] || "").trim();
                     let class2 = String(c["班別2"] || c["班級2"] || c["class2"] || "").trim();
                     let stu3 = String(c["姓名3"] || c["學生3"] || c["stu3"] || "").trim();
@@ -1254,16 +1492,22 @@
                     let stu6 = String(c["姓名6"] || c["學生6"] || c["stu6"] || "").trim();
                     let class6 = String(c["班別6"] || c["班級6"] || c["class6"] || "").trim();
 
-                    if (!stu2 && (stu1.includes(',') || stu1.includes('、'))) {
-                        const sep = stu1.includes('、') ? '、' : ',';
-                        const parts = stu1.split(sep).map(x => x.trim()).filter(Boolean);
-                        const cParts = class1.split(sep).map(x => x.trim());
-                        stu1 = parts[0] || ''; class1 = cParts[0] || class1;
-                        if (parts[1]) { stu2 = parts[1]; class2 = cParts[1] || class1; }
-                        if (parts[2]) { stu3 = parts[2]; class3 = cParts[2] || class1; }
-                        if (parts[3]) { stu4 = parts[3]; class4 = cParts[3] || class1; }
-                        if (parts[4]) { stu5 = parts[4]; class5 = cParts[4] || class1; }
-                        if (parts[5]) { stu6 = parts[5]; class6 = cParts[5] || class1; }
+                    if (!stu2 && stu1) {
+                        const parts = stu1.split(sepRegex).map(x => x.trim()).filter(Boolean);
+                        const cParts = class1.split(sepRegex).map(x => x.trim()).filter(Boolean);
+                        const pairs = parts.slice(0, 6).map((token, i) => {
+                            const m = token.match(/^(.+?)\s*[（(]([^）)]+)[）)]$/);
+                            if (m) return { stu: m[1].trim(), cls: m[2].trim() || cParts[i] || cParts[0] || "" };
+                            return { stu: token, cls: cParts[i] ?? cParts[0] ?? "" };
+                        });
+                        if (pairs.length > 0) {
+                            stu1 = pairs[0]?.stu || ''; class1 = pairs[0]?.cls || '';
+                            stu2 = pairs[1]?.stu || ''; class2 = pairs[1]?.cls || '';
+                            stu3 = pairs[2]?.stu || ''; class3 = pairs[2]?.cls || '';
+                            stu4 = pairs[3]?.stu || ''; class4 = pairs[3]?.cls || '';
+                            stu5 = pairs[4]?.stu || ''; class5 = pairs[4]?.cls || '';
+                            stu6 = pairs[5]?.stu || ''; class6 = pairs[5]?.cls || '';
+                        }
                     }
 
                     entries.push({
@@ -1276,9 +1520,9 @@
                         stu4, class4,
                         stu5, class5,
                         stu6, class6,
-                        teacher: String(c["負責老師"] || c["老師"] || "").trim(),
-                        cat: String(c["類別"] || "學術").trim(),
-                        award: String(c["獎項"] || c["名次"] || "").trim()
+                        teacher: String(c["負責老師"] || c["老師"] || c["teacher"] || "").trim(),
+                        cat: String(c["類別"] || c["cat"] || "學術").trim(),
+                        award: String(c["獎項"] || c["名次"] || c["award"] || "").trim()
                     });
                 });
 
